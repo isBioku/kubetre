@@ -66,6 +66,21 @@ az provider register --namespace Microsoft.Compute   # once the feature shows "R
 
 If you cannot register `EncryptionAtHost`, set `host_encryption_enabled = false` in step 3.
 
+**Check quota and size availability.** New pay-as-you-go subscriptions usually allow only 10
+vCPUs per region, and Azure may withhold some sizes or zones from them. The default cluster
+needs about 24 vCPUs of the Dsv5 family before any research VM:
+
+```sh
+az vm list-usage --location uksouth -o table | grep -E "Total Regional|DSv5"
+az vm list-skus --location uksouth --size Standard_D4s_v5 --all \
+  --query "[].restrictions[].{type:type, reason:reasonCode, zones:restrictionInfo.zones}" -o table
+```
+
+Request more with `az quota update` (extension `quota`) or in the portal under Quotas; small
+increases for Dsv5 are usually approved within minutes. Set `zones` in step 3 to the zones
+that are not restricted. For short test runs within 10 vCPUs, apply with the small profile
+(`-var-file=profiles/small.tfvars`): one node per pool and smaller research VMs.
+
 **Decide** before you start:
 
 - An environment name: 3 to 12 lowercase letters or digits, for example `kubetredev`. It is
@@ -127,7 +142,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars`. Fill in `name`, `location
 `operator_ip_ranges`, paste the lines printed by the setup script, and leave
 `gitops_repository_url` empty for now.
 
-**Apply.**
+**Apply.** Add `-var-file=profiles/small.tfvars` for a short, low-cost test run.
 
 ```sh
 cd infra/azure
@@ -331,6 +346,7 @@ Delete in this order, or Azure will refuse to delete the network while VMs still
 | Symptom | Likely cause and fix |
 |---|---|
 | A Flux kustomization stays `Ready=False` | `kubectl describe kustomization <name> -n flux-system` shows the failing object. The platform stage may fail once while Crossplane's CRDs install; it retries every minute. |
+| Apply fails with `NotAvailableForSubscription` or a quota error | The size or zone is restricted for your subscription, or the family's vCPU quota is too low. Run the checks in step 1, adjust `zones` or the sizes, or request quota. |
 | Pods show `ImagePullBackOff` | `make acr-build` or `make acr-mirror` did not run, or `kubetre_version` does not match the tag you built. |
 | A Crossplane provider is not healthy | The firewall denied its package download: run the query in step 7. If the Upbound package needs a subscription, build it from `crossplane-contrib/provider-upjet-azure`. |
 | A workspace stays `Pending` with `VMNetworkProvisioning` | `kubectl -n ws-<name> describe workspacenetwork vm-network`, then the composed resources, show the Azure error. Commonly the Crossplane identity lacks a permission or the address pool overlaps something. |

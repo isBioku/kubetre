@@ -51,6 +51,9 @@ var values = map[string]string{
 	"GATEWAY_OIDC_CLIENT_ID":   "88888888-8888-8888-8888-888888888888",
 	"GATEWAY_ILB_IP":           "10.224.9.10",
 	"ILB_SUBNET_NAME":          "snet-shared-ilb",
+	"VM_SIZE_SMALL":            "Standard_D2s_v5",
+	"VM_SIZE_MEDIUM":           "Standard_D2s_v5",
+	"VM_SIZE_LARGE":            "Standard_D4s_v5",
 }
 
 // stages are the Flux kustomizations in apply order.
@@ -205,8 +208,8 @@ func TestEnvironmentConfigKeepsDefaultsAndTypes(t *testing.T) {
 		sub := map[string]any{}
 		_ = yaml.Unmarshal([]byte(text), &sub)
 		data := sub["data"].(map[string]any)
-		if _, ok := data["vmSizes"].(map[string]any); !ok {
-			t.Error("the overlay must keep vmSizes from crossplane/azure/environmentconfig.yaml")
+		if sizes, ok := data["vmSizes"].(map[string]any); !ok || sizes["medium"] != values["VM_SIZE_MEDIUM"] {
+			t.Errorf("vmSizes must come from Terraform: %v", data["vmSizes"])
 		}
 		if data["encryptionAtHost"] != true {
 			t.Errorf("encryptionAtHost = %#v; it must be a boolean after substitution", data["encryptionAtHost"])

@@ -66,6 +66,16 @@ variable "system_vm_size" {
   default = "Standard_D4s_v5"
 }
 
+variable "system_node_count" {
+  description = "Autoscaling bounds for the system node pool."
+  type        = object({ min = number, max = number })
+  default     = { min = 2, max = 4 }
+  validation {
+    condition     = var.system_node_count.min >= 1 && var.system_node_count.min <= var.system_node_count.max
+    error_message = "system_node_count needs 1 <= min <= max."
+  }
+}
+
 variable "work_vm_size" {
   type    = string
   default = "Standard_D8s_v5"
@@ -80,6 +90,26 @@ variable "work_node_count" {
 variable "gateway_vm_size" {
   type    = string
   default = "Standard_D4s_v5"
+}
+
+variable "gateway_node_count" {
+  description = "Autoscaling bounds for the access-gateway node pool."
+  type        = object({ min = number, max = number })
+  default     = { min = 2, max = 3 }
+  validation {
+    condition     = var.gateway_node_count.min >= 1 && var.gateway_node_count.min <= var.gateway_node_count.max
+    error_message = "gateway_node_count needs 1 <= min <= max."
+  }
+}
+
+variable "research_vm_sizes" {
+  description = "Azure VM size behind each research VM size a researcher can pick."
+  type        = object({ small = string, medium = string, large = string })
+  default = {
+    small  = "Standard_D2s_v5"
+    medium = "Standard_D4s_v5"
+    large  = "Standard_D8s_v5"
+  }
 }
 
 variable "host_encryption_enabled" {

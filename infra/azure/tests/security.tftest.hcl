@@ -250,6 +250,47 @@ run "only_https_to_the_gateway_is_published" {
   }
 }
 
+run "small_profile_keeps_the_security_baseline" {
+  command = apply
+  variables {
+    system_vm_size     = "Standard_D2s_v5"
+    system_node_count  = { min = 1, max = 1 }
+    work_vm_size       = "Standard_D4s_v5"
+    work_node_count    = { min = 1, max = 1 }
+    gateway_vm_size    = "Standard_D2s_v5"
+    gateway_node_count = { min = 1, max = 1 }
+    aks_sku_tier       = "Free"
+    defender_enabled   = false
+    zones              = ["2", "3"]
+  }
+
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster.this.default_node_pool[0].max_count == 1 &&
+      azurerm_kubernetes_cluster_node_pool.work.max_count == 1 &&
+      azurerm_kubernetes_cluster_node_pool.gateway.max_count == 1
+    )
+    error_message = "The small profile must never scale beyond its quota."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster.this.local_account_disabled &&
+      azurerm_kubernetes_cluster.this.network_profile[0].outbound_type == "userDefinedRouting" &&
+      azurerm_kubernetes_cluster.this.network_profile[0].advanced_networking[0].security_enabled &&
+      azurerm_kubernetes_cluster_node_pool.gateway.pod_subnet_id == azurerm_subnet.gateway_pods.id
+    )
+    error_message = "Shrinking the cluster must not weaken its security settings."
+  }
+}
+
+run "inverted_node_bounds_are_rejected" {
+  command = plan
+  variables {
+    gateway_node_count = { min = 3, max = 1 }
+  }
+  expect_failures = [var.gateway_node_count]
+}
+
 run "open_api_server_is_rejected" {
   command = plan
   variables {

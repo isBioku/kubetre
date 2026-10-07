@@ -90,8 +90,8 @@ resource "azurerm_kubernetes_cluster" "this" {
     os_sku                       = "AzureLinux"
     only_critical_addons_enabled = true
     auto_scaling_enabled         = true
-    min_count                    = 2
-    max_count                    = 4
+    min_count                    = var.system_node_count.min
+    max_count                    = var.system_node_count.max
     node_public_ip_enabled       = false
     host_encryption_enabled      = var.host_encryption_enabled
     temporary_name_for_rotation  = "systemtmp"
@@ -179,8 +179,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "gateway" {
   zones                       = var.zones
   os_sku                      = "AzureLinux"
   auto_scaling_enabled        = true
-  min_count                   = 2
-  max_count                   = 3
+  min_count                   = var.gateway_node_count.min
+  max_count                   = var.gateway_node_count.max
   node_public_ip_enabled      = false
   host_encryption_enabled     = var.host_encryption_enabled
   temporary_name_for_rotation = "gatewaytmp"

@@ -30,6 +30,9 @@ locals {
     GATEWAY_OIDC_CLIENT_ID   = var.gateway_oidc_client_id
     GATEWAY_ILB_IP           = local.gateway_ilb_ip
     ILB_SUBNET_NAME          = azurerm_subnet.shared_ilb.name
+    VM_SIZE_SMALL            = var.research_vm_sizes.small
+    VM_SIZE_MEDIUM           = var.research_vm_sizes.medium
+    VM_SIZE_LARGE            = var.research_vm_sizes.large
   }
 }
 

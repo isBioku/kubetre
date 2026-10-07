@@ -12,6 +12,10 @@ data:
   accessGatewayPrefixes: ["${ACCESS_GATEWAY_PREFIX}"]
   sharedServicePrefixes: ["${SHARED_SERVICES_PREFIX}"]
   encryptionAtHost: ${ENCRYPTION_AT_HOST}
+  vmSizes:
+    small: ${VM_SIZE_SMALL}
+    medium: ${VM_SIZE_MEDIUM}
+    large: ${VM_SIZE_LARGE}
 ---
 apiVersion: azure.m.upbound.io/v1beta1
 kind: ClusterProviderConfig
