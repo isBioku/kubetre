@@ -150,6 +150,9 @@ variable "platform_egress_fqdns" {
   type        = list(string)
   default = [
     "xpkg.upbound.io",
+    # Upbound's registry serves package layers from this CloudFront distribution. Allow the
+    # exact host, never *.cloudfront.net, which would open every CloudFront site.
+    "d3qrbvrml4iuq4.cloudfront.net",
     "xpkg.crossplane.io",
     "*.blob.core.windows.net",
     "charts.crossplane.io",
