@@ -5,6 +5,7 @@ resource "azurerm_public_ip" "firewall" {
   allocation_method   = "Static"
   sku                 = "Standard"
   zones               = var.zones
+  domain_name_label   = var.firewall_dns_label == "" ? null : var.firewall_dns_label
   tags                = local.tags
 }
 

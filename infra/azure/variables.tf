@@ -206,6 +206,16 @@ variable "roles_claim" {
   default = "roles"
 }
 
+variable "firewall_dns_label" {
+  description = "Optional DNS label for the firewall's public IP. It yields <label>.<location>.cloudapp.azure.com, a free hostname for the gateway when you have no domain."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.firewall_dns_label == "" || can(regex("^[a-z][a-z0-9-]{1,61}[a-z0-9]$", var.firewall_dns_label))
+    error_message = "firewall_dns_label must be 3-63 lowercase letters, digits or hyphens, starting with a letter."
+  }
+}
+
 variable "gateway_hostname" {
   description = "Public DNS name of the access gateway, for example gateway.tre.example.org. Point it at the firewall's public IP."
   type        = string

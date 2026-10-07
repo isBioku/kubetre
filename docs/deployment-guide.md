@@ -180,6 +180,10 @@ Hub credentials to `az acr import`.
 terraform -chdir=infra/azure output -raw firewall_public_ip
 ```
 
+No domain? Set `firewall_dns_label` (for example `kubetredev-gw`) and use
+`<label>.<region>.cloudapp.azure.com` as `gateway_hostname`. Azure creates that name on the
+firewall's public IP for you; `terraform output firewall_fqdn` shows it.
+
 **Namespace and secrets.** Flux creates the `kubetre-gateway` namespace later, but you can
 create it now so the secrets are ready when the gateway starts:
 
@@ -192,7 +196,14 @@ kubectl -n kubetre-gateway create secret generic kubetre-gateway-oidc \
 ```
 
 Use a certificate from your organisation's CA, or from Let's Encrypt with a DNS challenge.
-Automatic renewal is not built yet, so note the expiry date.
+Automatic renewal is not built yet, so note the expiry date. For a short test run you can use
+a self-signed certificate; browsers warn once and sign-in still works:
+
+```sh
+H=<gateway_hostname>
+openssl req -x509 -newkey rsa:3072 -sha256 -days 30 -nodes -keyout privkey.pem -out fullchain.pem \
+  -subj "/CN=$H" -addext "subjectAltName=DNS:$H" -addext "extendedKeyUsage=serverAuth"
+```
 
 ## 6. Turn on GitOps
 

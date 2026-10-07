@@ -32,3 +32,8 @@ output "gateway_url" {
   description = "Create a DNS record for this host pointing at firewall_public_ip."
   value       = var.gateway_hostname == "" ? "" : "https://${var.gateway_hostname}"
 }
+
+output "firewall_fqdn" {
+  description = "Azure-provided hostname of the firewall's public IP, when firewall_dns_label is set."
+  value       = azurerm_public_ip.firewall.fqdn
+}
