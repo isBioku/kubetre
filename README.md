@@ -74,3 +74,13 @@ then point Flux at this repository. The VM security model and its open gaps are 
 6. **UI.** Template-driven forms from the template schemas.
 7. **Airlock.** PostgreSQL state, storage per stage, presigned URLs, malware scanning, review VMs.
 8. **Hardening.** Audit logs, Defender, stronger container isolation, cost reporting.
+
+## Status and license
+
+KubeTRE is early-stage and has not yet been deployed to Azure. Read the open gaps in
+[ADR 8](docs/adr/0008-vm-security-model.md) and [ADR 9](docs/adr/0009-access-gateway.md)
+before using it for sensitive data.
+
+Released under the [MIT License](LICENSE). KubeTRE is inspired by
+[AzureTRE](https://github.com/microsoft/AzureTRE) (also MIT) and is not affiliated with or
+endorsed by Microsoft.
