@@ -1,2 +1,3 @@
 resources:
   - crossplane.yaml
+  - installer-rbac.yaml

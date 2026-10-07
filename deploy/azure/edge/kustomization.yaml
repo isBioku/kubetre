@@ -1,2 +1,3 @@
 resources:
   - envoy-gateway.yaml
+  - installer-rbac.yaml

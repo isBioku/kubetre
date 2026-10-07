@@ -1,7 +1,35 @@
+# Flux's source controller pulls charts from ACR with its own workload identity. Without it,
+# Flux falls back to the node's managed identity and fails, because nodes carry several
+# identities and Azure will not pick one ("Multiple user assigned identities exist").
+resource "azurerm_user_assigned_identity" "flux" {
+  name                = "id-${var.name}-flux"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.core.name
+  tags                = local.tags
+}
+
+resource "azurerm_federated_identity_credential" "flux_source_controller" {
+  name                      = "flux-source-controller"
+  user_assigned_identity_id = azurerm_user_assigned_identity.flux.id
+  issuer                    = azurerm_kubernetes_cluster.this.oidc_issuer_url
+  subject                   = "system:serviceaccount:flux-system:source-controller"
+  audience                  = ["api://AzureADTokenExchange"]
+}
+
+resource "azurerm_role_assignment" "flux_acr_pull" {
+  scope                = azurerm_container_registry.this.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.flux.principal_id
+}
+
 resource "azurerm_kubernetes_cluster_extension" "flux" {
   name           = "flux"
   cluster_id     = azurerm_kubernetes_cluster.this.id
   extension_type = "microsoft.flux"
+  configuration_settings = {
+    "workloadIdentity.enable"        = "true"
+    "workloadIdentity.azureClientId" = azurerm_user_assigned_identity.flux.client_id
+  }
   # Flux's controllers need the API server rule, or they crash-loop and the extension times out.
   depends_on = [azurerm_kubernetes_cluster_node_pool.work, azurerm_firewall_policy_rule_collection_group.cluster_api]
 }

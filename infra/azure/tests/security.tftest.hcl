@@ -308,6 +308,26 @@ run "pods_reach_only_the_api_server_ip" {
   }
 }
 
+run "flux_pulls_from_acr_with_its_own_identity" {
+  command = apply
+
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_extension.flux.configuration_settings["workloadIdentity.enable"] == "true" &&
+      azurerm_kubernetes_cluster_extension.flux.configuration_settings["workloadIdentity.azureClientId"] == azurerm_user_assigned_identity.flux.client_id
+    )
+    error_message = "Flux must use workload identity, not the node's managed identities."
+  }
+  assert {
+    condition     = azurerm_role_assignment.flux_acr_pull.scope == azurerm_container_registry.this.id && azurerm_role_assignment.flux_acr_pull.role_definition_name == "AcrPull"
+    error_message = "Flux's identity may only pull from this environment's registry."
+  }
+  assert {
+    condition     = azurerm_federated_identity_credential.flux_source_controller.subject == "system:serviceaccount:flux-system:source-controller"
+    error_message = "Only Flux's source controller may use the Flux identity."
+  }
+}
+
 run "inverted_node_bounds_are_rejected" {
   command = plan
   variables {
