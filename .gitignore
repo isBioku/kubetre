@@ -9,3 +9,5 @@ backend.hcl
 
 # Secrets written by hack/entra-setup.sh
 *-client-secret.txt
+# Shared, non-secret Terraform profiles are committed.
+!infra/azure/profiles/*.tfvars
