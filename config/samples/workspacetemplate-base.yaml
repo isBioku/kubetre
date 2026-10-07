@@ -1,0 +1,31 @@
+apiVersion: kubetre.io/v1alpha1
+kind: WorkspaceTemplate
+metadata:
+  name: base
+spec:
+  displayName: Base workspace
+  description: An isolated namespace with a quota and no internet access except package mirrors.
+  version: 0.1.0
+  quota:
+    requests.cpu: "8"
+    requests.memory: 32Gi
+    limits.cpu: "16"
+    limits.memory: 64Gi
+    persistentvolumeclaims: "10"
+    requests.storage: 500Gi
+  egress:
+    allowedFQDNs: []
+  parametersSchema:
+    type: object
+    required: [costCentre]
+    properties:
+      costCentre:
+        type: string
+        title: Cost centre
+        pattern: "^CC-[0-9]{4}$"
+      dataClassification:
+        type: string
+        title: Data classification
+        enum: [open, internal, sensitive]
+        default: sensitive
+    additionalProperties: false

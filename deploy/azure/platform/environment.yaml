@@ -1,0 +1,35 @@
+# Environment-specific values, substituted by Flux from Terraform outputs (infra/azure/gitops.tf).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: kubetre-azure
+data:
+  location: ${LOCATION}
+  resourceGroup: ${WORKSPACE_RESOURCE_GROUP}
+  virtualNetworkName: ${VNET_NAME}
+  routeTableId: ${ROUTE_TABLE_ID}
+  firewallPolicyId: ${FIREWALL_POLICY_ID}
+  accessGatewayPrefixes: ["${ACCESS_GATEWAY_PREFIX}"]
+  sharedServicePrefixes: ["${SHARED_SERVICES_PREFIX}"]
+  encryptionAtHost: ${ENCRYPTION_AT_HOST}
+---
+apiVersion: azure.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: OIDCTokenFile
+  clientID: ${CROSSPLANE_CLIENT_ID}
+  tenantID: ${AZURE_TENANT_ID}
+  subscriptionID: ${AZURE_SUBSCRIPTION_ID}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubetre-api
+  namespace: kubetre-system
+data:
+  OIDC_ISSUER: ${OIDC_ISSUER}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE}
+  ROLES_CLAIM: ${ROLES_CLAIM}

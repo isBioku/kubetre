@@ -1,0 +1,19 @@
+# Set by the ServiceTemplate (administrator).
+os: linux # linux | windows
+image:
+  publisher: Canonical
+  offer: ubuntu-24_04-lts
+  sku: server
+  version: latest
+username: researcher
+
+# Chosen by the researcher, within the ServiceTemplate's values schema.
+size: medium # small | medium | large; mapped to VM sizes in the kubetre-azure EnvironmentConfig
+diskGi: 64
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted

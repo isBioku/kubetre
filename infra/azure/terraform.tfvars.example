@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is git-ignored.
+name     = "kubetredev"
+location = "uksouth"
+
+# Public CIDRs of operators and CI runners: AKS API server and ACR accept only these.
+operator_ip_ranges = ["203.0.113.10/32"]
+
+# Entra ID group(s) whose members administer the cluster.
+admin_group_object_ids = ["00000000-0000-0000-0000-000000000000"]
+
+# Set after the repository is pushed; Flux then installs Crossplane and KubeTRE.
+gitops_repository_url = "" # e.g. https://github.com/<org>/kubetre
+gitops_branch         = "main"
+gitops_path           = "deploy/azure"
+
+# KubeTRE API sign-in (an Entra app registration, or any OIDC provider).
+oidc_issuer   = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+oidc_audience = "<api-app-client-id>"
+
+# Access gateway. Point a DNS record for gateway_hostname at the firewall_public_ip output,
+# and create the TLS Secret kubetre-gateway-tls in namespace kubetre-gateway.
+gateway_hostname       = "gateway.tre.example.org"
+gateway_oidc_client_id = "<gateway-app-client-id>"
+gateway_source_ranges  = ["*"]

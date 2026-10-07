@@ -1,0 +1,25 @@
+# Set by the ServiceTemplate (administrator).
+image:
+  repository: kubetreacr.azurecr.io/kubetre/linux-desktop
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Chosen by the researcher, within the ServiceTemplate's values schema.
+size: small
+storageGi: 20
+
+sizes:
+  small: {cpu: "1", memory: 2Gi}
+  medium: {cpu: "2", memory: 4Gi}
+  large: {cpu: "4", memory: 8Gi}
+
+# Empty uses the cluster default (managed-csi on AKS).
+storageClassName: ""
+resolution: 1600x900
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted

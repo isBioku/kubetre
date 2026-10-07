@@ -1,0 +1,26 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: linux-vm
+spec:
+  displayName: Linux VM (Ubuntu 24.04)
+  description: A personal Azure VM with full root access, reached through the access gateway.
+  perUser: true
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://kubetreacr.azurecr.io/charts/research-vm
+    version: 0.2.0
+    provider: azure
+  values:
+    os: linux
+    image:
+      publisher: Canonical
+      offer: ubuntu-24_04-lts
+      sku: server
+      version: latest
+  valuesSchema:
+    type: object
+    properties:
+      size: {type: string, title: Size, enum: [small, medium, large], default: medium}
+      diskGi: {type: integer, title: Disk (GiB), minimum: 30, maximum: 1024, default: 64}
+    additionalProperties: false

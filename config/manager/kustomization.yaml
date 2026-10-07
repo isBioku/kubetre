@@ -1,0 +1,4 @@
+resources:
+  - namespaces.yaml
+  - controller.yaml
+  - api.yaml

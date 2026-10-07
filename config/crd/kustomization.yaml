@@ -1,0 +1,5 @@
+resources:
+  - bases/kubetre.io_workspacetemplates.yaml
+  - bases/kubetre.io_workspaces.yaml
+  - bases/kubetre.io_servicetemplates.yaml
+  - bases/kubetre.io_workspaceservices.yaml

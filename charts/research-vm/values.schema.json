@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["os", "image", "username", "size", "diskGi", "kubetre"],
+  "properties": {
+    "os": {"type": "string", "enum": ["linux", "windows"]},
+    "image": {
+      "type": "object",
+      "required": ["publisher", "offer", "sku", "version"],
+      "properties": {
+        "publisher": {"type": "string", "minLength": 1},
+        "offer": {"type": "string", "minLength": 1},
+        "sku": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "username": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,19}$"},
+    "size": {"type": "string", "enum": ["small", "medium", "large"]},
+    "diskGi": {"type": "integer", "minimum": 30, "maximum": 1024},
+    "kubetre": {"type": "object"}
+  }
+}

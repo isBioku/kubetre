@@ -1,0 +1,40 @@
+# Envoy Gateway, installed from the copy mirrored into ACR (make acr-mirror), so the cluster
+# never pulls from Docker Hub.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: envoy-gateway-system
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: envoy-gateway
+  namespace: envoy-gateway-system
+spec:
+  interval: 1h
+  url: oci://${ACR_LOGIN_SERVER}/envoyproxy/gateway-helm
+  ref: {tag: v1.9.2}
+  provider: azure
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: envoy-gateway
+  namespace: envoy-gateway-system
+spec:
+  interval: 30m
+  chartRef: {kind: OCIRepository, name: envoy-gateway}
+  install:
+    crds: CreateReplace
+    remediation: {retries: 3}
+  upgrade:
+    crds: CreateReplace
+    remediation: {retries: 3}
+  values:
+    global:
+      images:
+        envoyGateway:
+          image: ${ACR_LOGIN_SERVER}/envoyproxy/gateway:v1.9.2

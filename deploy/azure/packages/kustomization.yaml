@@ -1,0 +1,9 @@
+# Crossplane providers and functions, with this environment's workload identity.
+resources:
+  - ../../../crossplane/install
+patches:
+  - target: {kind: DeploymentRuntimeConfig}
+    patch: |
+      - op: replace
+        path: /spec/serviceAccountTemplate/metadata/annotations/azure.workload.identity~1client-id
+        value: ${CROSSPLANE_CLIENT_ID}

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubetre-gateway
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    # Workspace namespaces admit desktop traffic from guacd pods in namespaces with this label.
+    kubetre.io/ingress: "true"

@@ -1,0 +1,8 @@
+# Apply after Crossplane is installed and the packages in install/ are healthy.
+resources:
+  - xrd-workspacenetwork.yaml
+  - xrd-researchvm.yaml
+  - azure/composition-workspacenetwork.yaml
+  - azure/composition-researchvm.yaml
+  - azure/environmentconfig.yaml
+  - azure/clusterproviderconfig.yaml

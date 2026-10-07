@@ -1,0 +1,74 @@
+# A personal research VM inside a workspace, created by the research-vm chart.
+# It attaches only to its own workspace's subnet; there is no field to choose another.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: researchvms.platform.kubetre.io
+spec:
+  scope: Namespaced
+  group: platform.kubetre.io
+  names:
+    kind: ResearchVM
+    plural: researchvms
+  defaultCompositionRef:
+    name: researchvm-azure
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - {name: OS, type: string, jsonPath: .spec.parameters.os}
+        - {name: Size, type: string, jsonPath: .spec.parameters.size}
+        - {name: IP, type: string, jsonPath: .status.privateIp}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [parameters]
+              properties:
+                parameters:
+                  type: object
+                  required: [os, size, diskGi, image, adminUsername, passwordSecretName]
+                  x-kubernetes-validations:
+                    - rule: self.os != 'windows' || self.diskGi >= 128
+                      message: Windows VMs need a disk of at least 128 GiB
+                    - rule: self.os == oldSelf.os && self.image == oldSelf.image
+                      message: os and image are immutable; create a new VM instead
+                  properties:
+                    os:
+                      type: string
+                      enum: [windows, linux]
+                    size:
+                      type: string
+                      enum: [small, medium, large]
+                    diskGi:
+                      type: integer
+                      minimum: 30
+                      maximum: 1024
+                    image:
+                      type: object
+                      required: [publisher, offer, sku, version]
+                      properties:
+                        publisher: {type: string, minLength: 1}
+                        offer: {type: string, minLength: 1}
+                        sku: {type: string, minLength: 1}
+                        version: {type: string, minLength: 1}
+                    adminUsername:
+                      type: string
+                      pattern: '^[a-z_][a-z0-9_-]{0,19}$'
+                      x-kubernetes-validations:
+                        - rule: "!(self in ['admin', 'administrator', 'root', 'guest', 'user', 'test', 'azureuser'])"
+                          message: adminUsername is reserved by Azure
+                    passwordSecretName:
+                      type: string
+                      minLength: 1
+                    owner:
+                      type: string
+            status:
+              type: object
+              properties:
+                computerName: {type: string}
+                privateIp: {type: string}

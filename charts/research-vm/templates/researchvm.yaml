@@ -1,0 +1,19 @@
+{{- if and (eq .Values.os "windows") (lt (int .Values.diskGi) 128) }}
+{{- fail "Windows VMs need diskGi of at least 128" }}
+{{- end }}
+apiVersion: platform.kubetre.io/v1alpha1
+kind: ResearchVM
+metadata:
+  name: {{ include "rvm.name" . }}
+  labels: {{- include "rvm.labels" . | nindent 4 }}
+  annotations:
+    kubetre.io/owner: {{ .Values.kubetre.owner | quote }}
+spec:
+  parameters:
+    os: {{ .Values.os }}
+    size: {{ .Values.size }}
+    diskGi: {{ int .Values.diskGi }}
+    image: {{- toYaml .Values.image | nindent 6 }}
+    adminUsername: {{ .Values.username | quote }}
+    passwordSecretName: {{ include "rvm.name" . }}-credentials
+    owner: {{ .Values.kubetre.owner | quote }}

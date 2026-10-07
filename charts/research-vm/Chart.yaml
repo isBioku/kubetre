@@ -1,0 +1,6 @@
+apiVersion: v2
+name: research-vm
+description: A personal Windows or Linux cloud VM (Azure VM) in a KubeTRE workspace, created through Crossplane.
+type: application
+version: 0.2.0
+appVersion: "0.2.0"

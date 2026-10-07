@@ -1,0 +1,5 @@
+resources:
+  - controller_role.yaml
+  - api_role.yaml
+  - deployer_role.yaml
+  - bindings.yaml

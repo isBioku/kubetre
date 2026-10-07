@@ -1,0 +1,23 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: linux-desktop
+spec:
+  displayName: Linux desktop
+  description: A personal XFCE desktop in the browser.
+  perUser: true
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://kubetreacr.azurecr.io/charts/linux-desktop
+    version: 0.2.0
+    provider: azure
+  values:
+    image:
+      repository: kubetreacr.azurecr.io/kubetre/linux-desktop
+      tag: "0.1.0"
+  valuesSchema:
+    type: object
+    properties:
+      size: {type: string, title: Size, enum: [small, medium, large], default: small}
+      storageGi: {type: integer, title: Home directory (GiB), minimum: 10, maximum: 200, default: 20}
+    additionalProperties: false

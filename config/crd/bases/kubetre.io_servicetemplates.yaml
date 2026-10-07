@@ -1,0 +1,124 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: servicetemplates.kubetre.io
+spec:
+  group: kubetre.io
+  names:
+    kind: ServiceTemplate
+    listKind: ServiceTemplateList
+    plural: servicetemplates
+    shortNames:
+    - svctpl
+    singular: servicetemplate
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.displayName
+      name: Display Name
+      type: string
+    - jsonPath: .spec.chart.url
+      name: Chart
+      type: string
+    - jsonPath: .spec.chart.version
+      name: Version
+      type: string
+    - jsonPath: .spec.perUser
+      name: Per User
+      type: boolean
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ServiceTemplate is a registered Helm chart that can run inside
+          workspaces.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ServiceTemplateSpec defines a service that can be installed
+              into workspaces.
+            properties:
+              chart:
+                description: ChartRef points at a Helm chart published to an OCI registry.
+                properties:
+                  provider:
+                    default: generic
+                    description: |-
+                      Provider selects how Flux authenticates to the registry. "azure", "aws" and "gcp"
+                      use the cluster's workload identity with ACR, ECR or Artifact Registry.
+                    enum:
+                    - generic
+                    - azure
+                    - aws
+                    - gcp
+                    type: string
+                  url:
+                    description: URL is the chart's OCI repository, for example oci://ghcr.io/org/charts/linux-desktop.
+                    pattern: ^oci://.+
+                    type: string
+                  version:
+                    description: Version is the exact chart version to install.
+                    minLength: 1
+                    type: string
+                required:
+                - url
+                - version
+                type: object
+              description:
+                type: string
+              displayName:
+                minLength: 1
+                type: string
+              perUser:
+                description: |-
+                  PerUser services belong to one researcher, like a personal desktop.
+                  Shared services belong to the workspace and only owners create them.
+                type: boolean
+              requiredPodSecurity:
+                default: restricted
+                description: |-
+                  RequiredPodSecurity is the loosest Pod Security level the chart's pods need.
+                  Installation is refused in workspaces that enforce a stricter level.
+                enum:
+                - restricted
+                - baseline
+                - privileged
+                type: string
+              values:
+                description: |-
+                  Values are fixed chart values set by the administrator. User values are
+                  applied on top, then KubeTRE's own values under the "kubetre" key.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              valuesSchema:
+                description: |-
+                  ValuesSchema is the JSON Schema for values users may set. Keep
+                  additionalProperties false so users cannot override chart internals.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            required:
+            - chart
+            - displayName
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}

@@ -1,0 +1,30 @@
+# Per-environment Azure settings read by the KubeTRE compositions. The values below are
+# examples; the AKS Terraform will create the real resources and write this object.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: kubetre-azure
+data:
+  location: uksouth
+  # Resource group that holds workspace subnets, NICs and VMs.
+  resourceGroup: rg-kubetre-workspaces
+  # The VNet that also hosts AKS; workspace subnets are carved from the controller's VM pool.
+  virtualNetworkName: vnet-kubetre
+  # Route table whose 0.0.0.0/0 route points at the Azure Firewall.
+  routeTableId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/routeTables/rt-kubetre-egress
+  firewallPolicyId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/firewallPolicies/fwp-kubetre
+  # Pod subnet of the access-gateway node pool (Guacamole). Only it may RDP or SSH to VMs.
+  accessGatewayPrefixes: ["10.224.8.0/24"]
+  # Internal load balancer subnet for shared services such as the package mirror.
+  sharedServicePrefixes: ["10.224.9.0/24"]
+  # Firewall FQDN tags every VM subnet may reach, so operating systems can patch.
+  platformFqdnTags: [WindowsUpdate]
+  vmSizes:
+    small: Standard_D2s_v5
+    medium: Standard_D4s_v5
+    large: Standard_D8s_v5
+  osDiskType: Premium_LRS
+  # Requires the EncryptionAtHost feature registered on the subscription.
+  encryptionAtHost: true
+  tags:
+    managed-by: kubetre

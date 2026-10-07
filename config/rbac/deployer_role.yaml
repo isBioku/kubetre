@@ -1,0 +1,30 @@
+# Bound in each workspace namespace to the kubetre-deployer service account, which Flux
+# impersonates to install charts. It can run workloads and request research VMs, but cannot
+# change network policies, quotas, limit ranges, RBAC or the workspace's cloud network, and
+# cannot create raw cloud resources, so a chart cannot weaken workspace isolation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubetre-workspace-deployer
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, configmaps, secrets, persistentvolumeclaims, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods/log, events, endpoints]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [platform.kubetre.io]
+    resources: [researchvms]
+    verbs: [get, list, watch, create, update, patch, delete]

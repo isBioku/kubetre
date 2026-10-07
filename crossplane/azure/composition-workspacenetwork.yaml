@@ -1,0 +1,166 @@
+# Creates a workspace's VM subnet in the shared VNet, with:
+#   - a network security group that admits only the access gateway (RDP/SSH) and blocks
+#     traffic to and from every other subnet, including other workspaces,
+#   - the egress route table, so internet traffic goes through Azure Firewall,
+#   - a firewall rule collection allowing HTTPS only to the workspace's allowlisted FQDNs.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: workspacenetwork-azure
+  labels:
+    kubetre.io/cloud: azure
+  annotations:
+    # The Go templates below must reach Crossplane verbatim, untouched by Flux substitution.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  compositeTypeRef:
+    apiVersion: platform.kubetre.io/v1alpha1
+    kind: WorkspaceNetwork
+  mode: Pipeline
+  pipeline:
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: kubetre-azure
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        options: [missingkey=error]
+        inline:
+          template: |
+            {{- $env := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $xr := .observed.composite.resource }}
+            {{- $ws := trimPrefix "ws-" $xr.metadata.namespace }}
+            {{- $p := $xr.spec.parameters }}
+            {{- $prefix := $p.addressPrefix }}
+            {{- $fqdns := index $p "allowedFQDNs" | default list }}
+            {{- $tags := dict "kubetre-workspace" $ws }}
+            {{- range $k, $v := (index $env "tags" | default dict) }}{{ $_ := set $tags $k $v }}{{ end }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: Subnet
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: subnet
+                crossplane.io/external-name: snet-ws-{{ $ws }}
+              labels:
+                kubetre.io/workspace: {{ $ws | quote }}
+                kubetre.io/role: vm-subnet
+            spec:
+              forProvider:
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                virtualNetworkName: {{ $env.virtualNetworkName | quote }}
+                addressPrefixes: [{{ $prefix | quote }}]
+                defaultOutboundAccessEnabled: false
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SecurityGroup
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: nsg
+                crossplane.io/external-name: nsg-ws-{{ $ws }}
+              labels:
+                kubetre.io/workspace: {{ $ws | quote }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                tags: {{ toJson $tags }}
+                securityRule:
+                  - {name: allow-same-subnet-in, priority: 100, direction: Inbound, access: Allow, protocol: "*",
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefix: {{ $prefix | quote }}, destinationPortRange: "*"}
+                  - {name: allow-access-gateway-in, priority: 110, direction: Inbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefixes: {{ toJson $env.accessGatewayPrefixes }}, sourcePortRange: "*",
+                     destinationAddressPrefix: {{ $prefix | quote }}, destinationPortRanges: ["22", "3389"]}
+                  - {name: deny-all-in, priority: 4096, direction: Inbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: "*", destinationPortRange: "*"}
+                  - {name: allow-same-subnet-out, priority: 100, direction: Outbound, access: Allow, protocol: "*",
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefix: {{ $prefix | quote }}, destinationPortRange: "*"}
+                  - {name: allow-shared-services-out, priority: 110, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefixes: {{ toJson $env.sharedServicePrefixes }}, destinationPortRanges: ["80", "443"]}
+                  - {name: allow-internet-https-out, priority: 120, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefix: Internet, destinationPortRange: "443"}
+                  - {name: allow-windows-activation-out, priority: 130, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefix: Internet, destinationPortRange: "1688"}
+                  - {name: deny-virtual-network-out, priority: 4000, direction: Outbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: VirtualNetwork, destinationPortRange: "*"}
+                  - {name: deny-all-out, priority: 4096, direction: Outbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: "*", destinationPortRange: "*"}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SubnetNetworkSecurityGroupAssociation
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: nsg-association
+            spec:
+              forProvider:
+                subnetIdSelector:
+                  matchControllerRef: true
+                networkSecurityGroupIdSelector:
+                  matchControllerRef: true
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SubnetRouteTableAssociation
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: route-association
+            spec:
+              forProvider:
+                subnetIdSelector:
+                  matchControllerRef: true
+                routeTableId: {{ $env.routeTableId | quote }}
+            {{- $tagsFqdn := index $env "platformFqdnTags" | default list }}
+            {{- if or $fqdns $tagsFqdn }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: FirewallPolicyRuleCollectionGroup
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: egress-rules
+                crossplane.io/external-name: rcg-ws-{{ $ws }}
+            spec:
+              forProvider:
+                firewallPolicyId: {{ $env.firewallPolicyId | quote }}
+                priority: {{ $p.firewallPriority }}
+                applicationRuleCollection:
+                  - name: ws-{{ $ws }}
+                    priority: 100
+                    action: Allow
+                    rule:
+                      {{- if $fqdns }}
+                      - name: workspace-allowlist
+                        protocols: [{type: Https, port: 443}]
+                        sourceAddresses: [{{ $prefix | quote }}]
+                        destinationFqdns: {{ toJson $fqdns }}
+                      {{- end }}
+                      {{- if $tagsFqdn }}
+                      - name: platform-updates
+                        protocols: [{type: Https, port: 443}, {type: Http, port: 80}]
+                        sourceAddresses: [{{ $prefix | quote }}]
+                        destinationFqdnTags: {{ toJson $tagsFqdn }}
+                      {{- end }}
+            {{- end }}
+            ---
+            apiVersion: platform.kubetre.io/v1alpha1
+            kind: WorkspaceNetwork
+            status:
+              subnetId: {{ dig "subnet" "resource" "status" "atProvider" "id" "" (index .observed "resources" | default dict) | quote }}
+    - step: mark-ready
+      functionRef:
+        name: function-auto-ready

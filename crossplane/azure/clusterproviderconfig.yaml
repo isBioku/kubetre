@@ -1,0 +1,14 @@
+# Crossplane authenticates to Azure with AKS workload identity. No secret is stored.
+# The identity needs Network Contributor and Virtual Machine Contributor on the workspace
+# resource group, Network Contributor on the VNet and route table, and permission to
+# write rule collection groups on the firewall policy. Nothing subscription-wide.
+apiVersion: azure.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: OIDCTokenFile
+  clientID: 00000000-0000-0000-0000-000000000000
+  tenantID: 00000000-0000-0000-0000-000000000000
+  subscriptionID: 00000000-0000-0000-0000-000000000000

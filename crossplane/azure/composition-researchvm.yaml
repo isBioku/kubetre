@@ -1,0 +1,114 @@
+# Creates a research VM in its workspace's subnet:
+#   - a NIC with a private IP only (no public IP is ever composed),
+#   - a Trusted Launch VM (secure boot, vTPM), host encryption, no managed identity so the
+#     guest holds no cloud credentials, and VM extensions disabled.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: researchvm-azure
+  labels:
+    kubetre.io/cloud: azure
+  annotations:
+    # The Go templates below must reach Crossplane verbatim, untouched by Flux substitution.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  compositeTypeRef:
+    apiVersion: platform.kubetre.io/v1alpha1
+    kind: ResearchVM
+  mode: Pipeline
+  pipeline:
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: kubetre-azure
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        options: [missingkey=error]
+        inline:
+          template: |
+            {{- $env := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $xr := .observed.composite.resource }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $ws := trimPrefix "ws-" $ns }}
+            {{- $p := $xr.spec.parameters }}
+            {{- $windows := eq $p.os "windows" }}
+            {{- /* Windows computer names are limited to 15 characters. */}}
+            {{- $computer := printf "tre%s" (printf "%s/%s" $ns $xr.metadata.name | sha256sum | trunc 12) }}
+            {{- $tags := dict "kubetre-workspace" $ws "kubetre-vm" $xr.metadata.name "kubetre-owner" (index $p "owner" | default "") }}
+            {{- range $k, $v := (index $env "tags" | default dict) }}{{ $_ := set $tags $k $v }}{{ end }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: NetworkInterface
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: nic
+                crossplane.io/external-name: nic-{{ $computer }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                acceleratedNetworkingEnabled: true
+                ipConfiguration:
+                  - name: internal
+                    primary: true
+                    privateIpAddressAllocation: Dynamic
+                    subnetIdSelector:
+                      matchLabels:
+                        kubetre.io/workspace: {{ $ws | quote }}
+                        kubetre.io/role: vm-subnet
+                tags: {{ toJson $tags }}
+            ---
+            apiVersion: compute.azure.m.upbound.io/v1beta1
+            kind: {{ if $windows }}WindowsVirtualMachine{{ else }}LinuxVirtualMachine{{ end }}
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: vm
+                crossplane.io/external-name: vm-{{ $computer }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                size: {{ index $env.vmSizes $p.size | quote }}
+                computerName: {{ $computer }}
+                adminUsername: {{ $p.adminUsername | quote }}
+                adminPasswordSecretRef:
+                  name: {{ $p.passwordSecretName | quote }}
+                  key: password
+                {{- if not $windows }}
+                disablePasswordAuthentication: false
+                {{- end }}
+                networkInterfaceIdsSelector:
+                  matchControllerRef: true
+                osDisk:
+                  caching: ReadWrite
+                  storageAccountType: {{ $env.osDiskType | quote }}
+                  diskSizeGb: {{ $p.diskGi }}
+                sourceImageReference: {{ toJson $p.image }}
+                secureBootEnabled: true
+                vtpmEnabled: true
+                encryptionAtHostEnabled: {{ $env.encryptionAtHost }}
+                bootDiagnostics: {}
+                provisionVmAgent: true
+                allowExtensionOperations: false
+                tags: {{ toJson $tags }}
+            ---
+            apiVersion: platform.kubetre.io/v1alpha1
+            kind: ResearchVM
+            status:
+              computerName: {{ $computer }}
+              privateIp: {{ dig "nic" "resource" "status" "atProvider" "privateIpAddress" "" (index .observed "resources" | default dict) | quote }}
+    - step: mark-ready
+      functionRef:
+        name: function-auto-ready

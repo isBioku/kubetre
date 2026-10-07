@@ -1,0 +1,19 @@
+# KubeTRE itself plus its Crossplane definitions, configured for this Azure environment.
+resources:
+  - ../../../config/default
+  - ../../../crossplane
+patches:
+  # Environment values replace the examples in crossplane/azure and config/manager.
+  - path: environment.yaml
+  - target: {kind: Deployment, name: kubetre-controller}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/args/3
+        value: --vm-address-pool=${VM_ADDRESS_POOL}
+images:
+  - name: kubetre/controller
+    newName: ${ACR_LOGIN_SERVER}/kubetre/controller
+    newTag: ${KUBETRE_VERSION}
+  - name: kubetre/api
+    newName: ${ACR_LOGIN_SERVER}/kubetre/api
+    newTag: ${KUBETRE_VERSION}

@@ -1,0 +1,16 @@
+# Normally created through the API, which validates parameters against the template schema.
+apiVersion: kubetre.io/v1alpha1
+kind: Workspace
+metadata:
+  name: genomics
+spec:
+  displayName: Genomics study
+  templateRef: base
+  parameters:
+    costCentre: CC-1234
+    dataClassification: sensitive
+  owners: [olive@example.com]
+  researchers: [rita@example.com]
+  airlockManagers: [amir@example.com]
+  egress:
+    allowedFQDNs: [pypi.org, files.pythonhosted.org]

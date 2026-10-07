@@ -1,0 +1,85 @@
+# Default deny, then only the flows the gateway needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: kubetre-gateway}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: kubetre-gateway}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+# Users arrive only through Envoy Gateway.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-from-envoy, namespace: kubetre-gateway}
+spec:
+  podSelector:
+    matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [broker, guacamole]}]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: guacamole-to-guacd, namespace: kubetre-gateway}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: guacd}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: guacamole}}}]
+      ports: [{protocol: TCP, port: 4822}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: guacamole-egress, namespace: kubetre-gateway}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: guacamole}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: guacd}}}]
+      ports: [{protocol: TCP, port: 4822}]
+---
+# guacd may reach VM subnets on SSH and RDP, and workspace desktops on VNC. Nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: guacd-egress, namespace: kubetre-gateway}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: guacd}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 10.240.0.0/16}}]
+      ports: [{protocol: TCP, port: 22}, {protocol: TCP, port: 3389}]
+    - to:
+        - namespaceSelector:
+            matchExpressions: [{key: kubetre.io/workspace, operator: Exists}]
+      ports: [{protocol: TCP, port: 5901}]
+---
+# The broker needs the Kubernetes API and the sign-in provider, which plain NetworkPolicy
+# cannot name, so this is a Cilium policy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: broker-egress, namespace: kubetre-gateway}
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: broker}
+  egress:
+    - toEntities: [kube-apiserver]
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s:k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules: {dns: [{matchPattern: "*"}]}
+    - toFQDNs: [{matchName: idp.example.org}]
+      toPorts: [{ports: [{port: "443", protocol: TCP}]}]

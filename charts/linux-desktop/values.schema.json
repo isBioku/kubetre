@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "size", "storageGi", "sizes", "kubetre"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "size": {"type": "string", "enum": ["small", "medium", "large"]},
+    "storageGi": {"type": "integer", "minimum": 5, "maximum": 500},
+    "sizes": {"type": "object"},
+    "storageClassName": {"type": "string"},
+    "resolution": {"type": "string", "pattern": "^[0-9]{3,4}x[0-9]{3,4}$"},
+    "kubetre": {
+      "type": "object",
+      "properties": {
+        "workspace": {"type": "string"},
+        "service": {"type": "string"},
+        "owner": {"type": "string"},
+        "podSecurity": {"type": "string"}
+      }
+    }
+  }
+}

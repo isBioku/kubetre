@@ -1,0 +1,59 @@
+{{- $size := required (printf "unknown size %q" .Values.size) (index .Values.sizes .Values.size) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "desktop.name" . }}
+  labels: {{- include "desktop.labels" . | nindent 4 }}
+  annotations:
+    kubetre.io/owner: {{ .Values.kubetre.owner | quote }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{- include "desktop.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "desktop.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: desktop
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: RESOLUTION
+              value: {{ .Values.resolution | quote }}
+            - name: VNC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ include "desktop.name" . }}-vnc, key: password}
+          ports:
+            - {name: vnc, containerPort: 5901}
+          readinessProbe:
+            tcpSocket: {port: vnc}
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: vnc}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: {{ $size.cpu | quote }}, memory: {{ $size.memory }}}
+            limits: {cpu: {{ $size.cpu | quote }}, memory: {{ $size.memory }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: home, mountPath: /home/researcher}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: home
+          persistentVolumeClaim: {claimName: {{ include "desktop.name" . }}-home}
+        - name: tmp
+          emptyDir: {sizeLimit: 2Gi}

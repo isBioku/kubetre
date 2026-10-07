@@ -1,0 +1,27 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: windows-vm
+spec:
+  displayName: Windows VM (Windows Server 2022)
+  description: A personal Azure VM with Windows licensing included, reached through the access gateway.
+  perUser: true
+  # The chart creates no pods, so the strictest level is fine.
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://kubetreacr.azurecr.io/charts/research-vm
+    version: 0.2.0
+    provider: azure
+  values:
+    os: windows
+    image:
+      publisher: MicrosoftWindowsServer
+      offer: WindowsServer
+      sku: 2022-datacenter-azure-edition
+      version: latest
+  valuesSchema:
+    type: object
+    properties:
+      size: {type: string, title: Size, enum: [small, medium, large], default: medium}
+      diskGi: {type: integer, title: Disk (GiB), minimum: 128, maximum: 1024, default: 128}
+    additionalProperties: false

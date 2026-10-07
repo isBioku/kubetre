@@ -1,0 +1,27 @@
+# A workspace that can run personal Azure VMs as well as container desktops.
+# The controller allocates it a private subnet; see crossplane/ for what gets created.
+apiVersion: kubetre.io/v1alpha1
+kind: WorkspaceTemplate
+metadata:
+  name: vm-workspace
+spec:
+  displayName: Workspace with virtual machines
+  description: Linux container desktops plus personal Windows or Linux Azure VMs.
+  version: 0.1.0
+  podSecurity: restricted
+  virtualMachines:
+    enabled: true
+  quota:
+    requests.cpu: "8"
+    requests.memory: 32Gi
+    persistentvolumeclaims: "10"
+    requests.storage: 500Gi
+    count/researchvms.platform.kubetre.io: "20"
+  egress:
+    allowedFQDNs: [pypi.org, files.pythonhosted.org, cran.r-project.org]
+  parametersSchema:
+    type: object
+    required: [costCentre]
+    properties:
+      costCentre: {type: string, title: Cost centre, pattern: "^CC-[0-9]{4}$"}
+    additionalProperties: false

@@ -1,0 +1,49 @@
+# The access gateway, configured for this Azure environment.
+resources:
+  - ../../../config/gateway
+patches:
+  - target: {kind: EnvoyProxy, name: kubetre}
+    patch: |
+      - op: add
+        path: /spec/provider/kubernetes/envoyService/annotations
+        value:
+          service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+          service.beta.kubernetes.io/azure-load-balancer-internal-subnet: ${ILB_SUBNET_NAME}
+          service.beta.kubernetes.io/azure-load-balancer-ipv4: ${GATEWAY_ILB_IP}
+      - op: add
+        path: /spec/provider/kubernetes/envoyDeployment/container
+        value:
+          image: ${ACR_LOGIN_SERVER}/envoyproxy/envoy:distroless-v1.39.1
+  - target: {kind: Gateway, name: kubetre}
+    patch: |
+      - op: replace
+        path: /spec/listeners/0/hostname
+        value: ${GATEWAY_HOSTNAME}
+  - target: {kind: ConfigMap, name: kubetre-gateway}
+    patch: |
+      - op: replace
+        path: /data
+        value:
+          EXTERNAL_URL: https://${GATEWAY_HOSTNAME}
+          OIDC_ISSUER: ${OIDC_ISSUER}
+          OIDC_CLIENT_ID: ${GATEWAY_OIDC_CLIENT_ID}
+  - target: {kind: NetworkPolicy, name: guacd-egress}
+    patch: |
+      - op: replace
+        path: /spec/egress/0/to/0/ipBlock/cidr
+        value: ${VM_ADDRESS_POOL}
+  - target: {kind: CiliumNetworkPolicy, name: broker-egress}
+    patch: |
+      - op: replace
+        path: /spec/egress/2/toFQDNs/0/matchName
+        value: ${IDP_HOST}
+images:
+  - name: kubetre/gateway
+    newName: ${ACR_LOGIN_SERVER}/kubetre/gateway
+    newTag: ${KUBETRE_VERSION}
+  - name: guacamole/guacamole
+    newName: ${ACR_LOGIN_SERVER}/guacamole/guacamole
+    newTag: "1.6.0"
+  - name: guacamole/guacd
+    newName: ${ACR_LOGIN_SERVER}/guacamole/guacd
+    newTag: "1.6.0"

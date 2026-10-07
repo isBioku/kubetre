@@ -1,0 +1,5 @@
+/*
+Copyright 2026 The KubeTRE Authors.
+
+Licensed under the MIT License.
+*/
