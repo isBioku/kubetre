@@ -96,7 +96,8 @@ resource "azurerm_kubernetes_cluster" "this" {
     host_encryption_enabled      = var.host_encryption_enabled
     temporary_name_for_rotation  = "systemtmp"
     upgrade_settings {
-      max_surge = "33%"
+      max_surge                     = "33%"
+      node_soak_duration_in_minutes = 0
     }
   }
 
@@ -161,7 +162,12 @@ resource "azurerm_kubernetes_cluster_node_pool" "work" {
   node_public_ip_enabled      = false
   host_encryption_enabled     = var.host_encryption_enabled
   temporary_name_for_rotation = "worktmp"
-  tags                        = local.tags
+  # AKS's defaults, stated so plans stay clean (Azure reports the soak time as 0, not unset).
+  upgrade_settings {
+    max_surge                     = "10%"
+    node_soak_duration_in_minutes = 0
+  }
+  tags = local.tags
   lifecycle {
     ignore_changes = [node_count]
   }
@@ -184,9 +190,14 @@ resource "azurerm_kubernetes_cluster_node_pool" "gateway" {
   node_public_ip_enabled      = false
   host_encryption_enabled     = var.host_encryption_enabled
   temporary_name_for_rotation = "gatewaytmp"
-  node_labels                 = { "kubetre.io/node-pool" = "gateway" }
-  node_taints                 = ["kubetre.io/node-pool=gateway:NoSchedule"]
-  tags                        = local.tags
+  # AKS's defaults, stated so plans stay clean (Azure reports the soak time as 0, not unset).
+  upgrade_settings {
+    max_surge                     = "10%"
+    node_soak_duration_in_minutes = 0
+  }
+  node_labels = { "kubetre.io/node-pool" = "gateway" }
+  node_taints = ["kubetre.io/node-pool=gateway:NoSchedule"]
+  tags        = local.tags
   lifecycle {
     ignore_changes = [node_count]
   }

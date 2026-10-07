@@ -90,6 +90,12 @@ override_resource {
   values = { id = "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetretest/providers/Microsoft.Network/virtualNetworks/vnet-kubetretest/subnets/snet-private-endpoints" }
 }
 
+mock_provider "dns" {
+  mock_data "dns_a_record_set" {
+    defaults = { addrs = ["4.158.91.146"] }
+  }
+}
+
 variables {
   name                   = "kubetretest"
   operator_ip_ranges     = ["203.0.113.0/24"]
@@ -280,6 +286,25 @@ run "small_profile_keeps_the_security_baseline" {
       azurerm_kubernetes_cluster_node_pool.gateway.pod_subnet_id == azurerm_subnet.gateway_pods.id
     )
     error_message = "Shrinking the cluster must not weaken its security settings."
+  }
+}
+
+run "pods_reach_only_the_api_server_ip" {
+  command = apply
+
+  assert {
+    condition = alltrue([
+      for r in one(azurerm_firewall_policy_rule_collection_group.cluster_api.network_rule_collection).rule :
+      toset(r.destination_addresses) == toset(["4.158.91.146"]) && toset(r.destination_ports) == toset(["443"]) && toset(r.protocols) == toset(["TCP"])
+    ])
+    error_message = "The API server rule must allow only TCP 443 to the API server's own address."
+  }
+  assert {
+    condition = alltrue([
+      for c in azurerm_firewall_policy_rule_collection_group.cluster_api.application_rule_collection : c.name != "node-managed-disks" ||
+      alltrue([for r in c.rule : toset(r.source_addresses) == toset(azurerm_subnet.nodes.address_prefixes)])
+    ])
+    error_message = "Managed-disk endpoints must be reachable from the node subnet only, never from pods."
   }
 }
 

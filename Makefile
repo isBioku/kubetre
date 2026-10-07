@@ -51,7 +51,11 @@ REGISTRY ?= $(ACR_NAME).azurecr.io
 CHART_DIR := $(BIN)/charts
 
 .PHONY: acr-build
-acr-build: ## Build controller, api and linux-desktop images in ACR (az login required)
+acr-build: ## Build KubeTRE's images in ACR; opens the registry's network rules only while building
+	hack/with-acr-open.sh $(ACR_NAME) $(MAKE) --no-print-directory acr-build-images ACR_NAME=$(ACR_NAME) IMG_TAG=$(IMG_TAG)
+
+.PHONY: acr-build-images
+acr-build-images:
 	az acr build --registry $(ACR_NAME) --image kubetre/controller:$(IMG_TAG) --build-arg CMD=controller .
 	az acr build --registry $(ACR_NAME) --image kubetre/api:$(IMG_TAG) --build-arg CMD=api .
 	az acr build --registry $(ACR_NAME) --image kubetre/gateway:$(IMG_TAG) --build-arg CMD=gateway .
@@ -72,7 +76,9 @@ charts-lint: ## Lint every chart, including the Windows VM variant
 publish-charts: charts-lint ## Package charts and push them to ACR as OCI artifacts
 	rm -rf $(CHART_DIR) && mkdir -p $(CHART_DIR)
 	$(BIN)/helm package charts/* -d $(CHART_DIR)
-	az acr login --name $(ACR_NAME)
+	# A short-lived ACR token for Helm; no Docker daemon needed.
+	az acr login --name $(ACR_NAME) --expose-token --output tsv --query accessToken \
+	  | $(BIN)/helm registry login $(REGISTRY) --username 00000000-0000-0000-0000-000000000000 --password-stdin
 	for c in $(CHART_DIR)/*.tgz; do $(BIN)/helm push $$c oci://$(REGISTRY)/charts; done
 
 .PHONY: manifests-check

@@ -2,7 +2,8 @@ resource "azurerm_kubernetes_cluster_extension" "flux" {
   name           = "flux"
   cluster_id     = azurerm_kubernetes_cluster.this.id
   extension_type = "microsoft.flux"
-  depends_on     = [azurerm_kubernetes_cluster_node_pool.work]
+  # Flux's controllers need the API server rule, or they crash-loop and the extension times out.
+  depends_on = [azurerm_kubernetes_cluster_node_pool.work, azurerm_firewall_policy_rule_collection_group.cluster_api]
 }
 
 locals {
