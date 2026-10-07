@@ -1,0 +1,8 @@
+# The templates registered in every KubeTRE environment. Chart URLs and images point at
+# registry.example.org; cloud overlays replace it with the environment's registry.
+resources:
+  - workspacetemplate-base.yaml
+  - workspacetemplate-vm.yaml
+  - servicetemplate-linux-desktop.yaml
+  - servicetemplate-linux-vm.yaml
+  - servicetemplate-windows-vm.yaml

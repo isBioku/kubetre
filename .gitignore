@@ -6,3 +6,6 @@ bin/
 *.tfvars
 !*.tfvars.example
 backend.hcl
+
+# Secrets written by hack/entra-setup.sh
+*-client-secret.txt

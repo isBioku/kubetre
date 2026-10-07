@@ -57,7 +57,7 @@ helm="$(cd "$(dirname "$0")/.." && pwd)/bin/helm"
 mkdir -p "$out/envoy-gateway"
 "$helm" template eg "$tmp/eg/gateway-helm" --include-crds | python3 -c '
 import sys, yaml
-want = {"gateways.gateway.networking.k8s.io", "gatewayclasses.gateway.networking.k8s.io", "httproutes.gateway.networking.k8s.io", "envoyproxies.gateway.envoyproxy.io"}
+want = {"gateways.gateway.networking.k8s.io", "referencegrants.gateway.networking.k8s.io", "gatewayclasses.gateway.networking.k8s.io", "httproutes.gateway.networking.k8s.io", "envoyproxies.gateway.envoyproxy.io"}
 for d in yaml.safe_load_all(sys.stdin):
     if d and d.get("kind") == "CustomResourceDefinition" and d["metadata"]["name"] in want:
         open(sys.argv[1] + "/" + d["metadata"]["name"] + ".yaml", "w").write(yaml.safe_dump(d, sort_keys=False))

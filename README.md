@@ -35,12 +35,13 @@ crossplane/          XRDs, Azure compositions and package installs for workspace
 infra/azure/         Terraform for one environment: AKS, network, firewall, ACR, identities, Flux
 deploy/azure/        Flux stages: Crossplane, its packages, then the KubeTRE platform
 images/              linux-desktop container image
-config/              CRDs, RBAC, deployments, samples, and the access gateway (Kustomize)
+config/              CRDs, RBAC, deployments, the access gateway, and registered templates (Kustomize)
 test/e2e/            API + controller against a real API server
 test/charts/         rendered charts checked against Pod Security admission and the VM XRD
 test/crossplane/     compositions rendered and checked against the real Azure provider schemas
 test/deploy/         GitOps tree checked against Terraform outputs and real Flux/Crossplane schemas
-docs/adr/            Architecture decision records
+docs/                deployment guide and architecture decision records (docs/adr)
+hack/                Entra ID setup and CRD refresh scripts
 ```
 
 ## Develop
@@ -59,9 +60,9 @@ Infrastructure checks, also without an Azure account:
 make infra-test     # terraform validate plus security tests against a mocked provider
 ```
 
-To deploy an environment, follow [infra/azure/README.md](infra/azure/README.md): create the
-state store, `terraform apply`, publish images and charts with `make acr-build publish-charts`,
-then point Flux at this repository. The VM security model and its open gaps are in
+To deploy an environment, follow the [deployment guide](docs/deployment-guide.md). It goes from
+an empty Azure subscription to a researcher connected to a Windows VM, and covers upgrades,
+teardown and troubleshooting. The VM security model and its open gaps are in
 [ADR 8](docs/adr/0008-vm-security-model.md).
 
 ## Roadmap

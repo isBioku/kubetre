@@ -2,6 +2,7 @@
 resources:
   - ../../../config/default
   - ../../../crossplane
+  - ../../../config/templates
 patches:
   # Environment values replace the examples in crossplane/azure and config/manager.
   - path: environment.yaml
@@ -10,6 +11,23 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/args/3
         value: --vm-address-pool=${VM_ADDRESS_POOL}
+  # Templates install charts and images from this environment's ACR.
+  - target: {kind: ServiceTemplate, name: linux-desktop}
+    patch: |
+      - op: replace
+        path: /spec/chart/url
+        value: oci://${ACR_LOGIN_SERVER}/charts/linux-desktop
+      - op: replace
+        path: /spec/values/image/repository
+        value: ${ACR_LOGIN_SERVER}/kubetre/linux-desktop
+      - op: replace
+        path: /spec/values/image/tag
+        value: "${KUBETRE_VERSION}"
+  - target: {kind: ServiceTemplate, name: "(linux|windows)-vm"}
+    patch: |
+      - op: replace
+        path: /spec/chart/url
+        value: oci://${ACR_LOGIN_SERVER}/charts/research-vm
 images:
   - name: kubetre/controller
     newName: ${ACR_LOGIN_SERVER}/kubetre/controller

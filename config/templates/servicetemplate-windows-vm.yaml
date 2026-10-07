@@ -9,11 +9,13 @@ spec:
   # The chart creates no pods, so the strictest level is fine.
   requiredPodSecurity: restricted
   chart:
-    url: oci://kubetreacr.azurecr.io/charts/research-vm
+    url: oci://registry.example.org/charts/research-vm
     version: 0.2.0
     provider: azure
   values:
     os: windows
+    # Windows images need at least 128 GiB; the API does not apply schema defaults.
+    diskGi: 128
     image:
       publisher: MicrosoftWindowsServer
       offer: WindowsServer

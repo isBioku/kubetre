@@ -2,7 +2,7 @@ BIN := $(CURDIR)/bin
 CONTROLLER_GEN := $(BIN)/controller-gen
 SETUP_ENVTEST := $(BIN)/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.37.0
-IMG_TAG ?= dev
+IMG_TAG ?= $(shell cat VERSION)
 
 .PHONY: help
 help: ## Show targets

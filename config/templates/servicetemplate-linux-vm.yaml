@@ -8,7 +8,7 @@ spec:
   perUser: true
   requiredPodSecurity: restricted
   chart:
-    url: oci://kubetreacr.azurecr.io/charts/research-vm
+    url: oci://registry.example.org/charts/research-vm
     version: 0.2.0
     provider: azure
   values:

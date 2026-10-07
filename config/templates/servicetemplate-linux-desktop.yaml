@@ -8,12 +8,12 @@ spec:
   perUser: true
   requiredPodSecurity: restricted
   chart:
-    url: oci://kubetreacr.azurecr.io/charts/linux-desktop
+    url: oci://registry.example.org/charts/linux-desktop
     version: 0.2.0
     provider: azure
   values:
     image:
-      repository: kubetreacr.azurecr.io/kubetre/linux-desktop
+      repository: registry.example.org/kubetre/linux-desktop
       tag: "0.1.0"
   valuesSchema:
     type: object

@@ -254,3 +254,62 @@ func TestGatewayUsesTheInternalLoadBalancer(t *testing.T) {
 	}
 	t.Fatal("no EnvoyProxy in the gateway stage")
 }
+
+// Registered templates must pull from this environment's registry, never the placeholder.
+func TestTemplatesUseTheEnvironmentRegistry(t *testing.T) {
+	n := 0
+	for _, u := range docs(build(t, "platform")) {
+		if u.GetKind() != "ServiceTemplate" {
+			continue
+		}
+		n++
+		raw, _ := yaml.Marshal(u.Object)
+		if strings.Contains(string(raw), "registry.example.org") {
+			t.Errorf("ServiceTemplate %s still points at the placeholder registry", u.GetName())
+		}
+		if url, _, _ := unstructured.NestedString(u.Object, "spec", "chart", "url"); !strings.HasPrefix(url, "oci://${ACR_LOGIN_SERVER}/charts/") {
+			t.Errorf("ServiceTemplate %s chart url = %s", u.GetName(), url)
+		}
+	}
+	if n != 3 {
+		t.Fatalf("expected 3 ServiceTemplates in the platform stage, found %d", n)
+	}
+}
+
+// The API is published on the gateway, and the cross-namespace grant covers only that.
+func TestAPIIsRoutedThroughTheGateway(t *testing.T) {
+	var route, grant *unstructured.Unstructured
+	for _, u := range docs(build(t, "gateway")) {
+		switch {
+		case u.GetKind() == "HTTPRoute" && u.GetName() == "api":
+			route = u
+		case u.GetKind() == "ReferenceGrant":
+			grant = u
+		}
+	}
+	if route == nil || grant == nil {
+		t.Fatal("missing the API HTTPRoute or its ReferenceGrant")
+	}
+	rules, _, _ := unstructured.NestedSlice(route.Object, "spec", "rules")
+	backend := rules[0].(map[string]any)["backendRefs"].([]any)[0].(map[string]any)
+	if backend["name"] != "kubetre-api" || backend["namespace"] != "kubetre-system" {
+		t.Fatalf("api route backend = %v", backend)
+	}
+	to, _, _ := unstructured.NestedSlice(grant.Object, "spec", "to")
+	if len(to) != 1 || to[0].(map[string]any)["name"] != "kubetre-api" {
+		t.Fatalf("ReferenceGrant must name only the kubetre-api Service: %v", to)
+	}
+}
+
+// make acr-build tags images with VERSION; Flux deploys kubetre_version. They must agree.
+func TestImageVersionsAgree(t *testing.T) {
+	v, err := os.ReadFile(filepath.Join(root, "VERSION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tf, _ := os.ReadFile(filepath.Join(root, "infra", "azure", "variables.tf"))
+	m := regexp.MustCompile(`(?s)variable "kubetre_version" \{.*?default\s+=\s+"([^"]+)"`).FindStringSubmatch(string(tf))
+	if m == nil || m[1] != strings.TrimSpace(string(v)) {
+		t.Fatalf("kubetre_version default %v does not match VERSION %q", m, strings.TrimSpace(string(v)))
+	}
+}

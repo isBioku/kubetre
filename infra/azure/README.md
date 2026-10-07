@@ -3,6 +3,9 @@
 Terraform for one KubeTRE environment: AKS, its network, Azure Firewall, ACR, Log Analytics,
 the Crossplane identity, and Flux. Flux then installs Crossplane and KubeTRE from Git.
 
+This page is the Terraform reference. For the full walkthrough, from an empty subscription to a
+researcher in a VM, follow [docs/deployment-guide.md](../../docs/deployment-guide.md).
+
 ## What it creates
 
 | Area | Resources | Security properties |
@@ -23,7 +26,8 @@ the Crossplane identity, and Flux. Flux then installs Crossplane and KubeTRE fro
   (Owner, or Contributor plus User Access Administrator).
 - `az feature register --namespace Microsoft.Compute --name EncryptionAtHost`, or set
   `host_encryption_enabled = false` and `encryptionAtHost: false`.
-- An Entra ID group for cluster administrators.
+- An Entra ID group for cluster administrators, and the API and gateway app registrations.
+  `hack/entra-setup.sh` creates all three and prints the matching Terraform variables.
 
 ## Deploy
 

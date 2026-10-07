@@ -98,3 +98,41 @@ func TestLinuxDesktopPassesRestrictedPodSecurity(t *testing.T) {
 		t.Fatal("privileged pod was admitted; Pod Security admission is not active")
 	}
 }
+
+// Users may send no values at all; the API does not apply schema defaults. Every registered
+// template must therefore render its chart with only the administrator's values.
+func TestTemplatesRenderWithAdminValuesOnly(t *testing.T) {
+	files, _ := filepath.Glob(filepath.Join("..", "..", "config", "templates", "servicetemplate-*.yaml"))
+	if len(files) == 0 {
+		t.Fatal("no service templates found")
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var tmpl struct {
+			Metadata struct{ Name string }
+			Spec     struct {
+				Chart  struct{ URL string }
+				Values map[string]any
+			}
+		}
+		if err := yaml.Unmarshal(raw, &tmpl); err != nil {
+			t.Fatal(err)
+		}
+		chart := tmpl.Spec.Chart.URL[strings.LastIndex(tmpl.Spec.Chart.URL, "/")+1:]
+		valuesFile := filepath.Join(t.TempDir(), "values.yaml")
+		out, _ := yaml.Marshal(tmpl.Spec.Values)
+		if err := os.WriteFile(valuesFile, out, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Run(tmpl.Metadata.Name, func(t *testing.T) {
+			cmd := exec.Command(helmBinary(t), "template", "x", filepath.Join("..", "..", "charts", chart),
+				"-f", valuesFile, "--set", "kubetre.workspace=chk", "--set", "kubetre.owner=rita@example.com")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("chart %s does not render with %s's values: %v\n%s", chart, tmpl.Metadata.Name, err, out)
+			}
+		})
+	}
+}

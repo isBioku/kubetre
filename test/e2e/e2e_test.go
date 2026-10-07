@@ -51,12 +51,12 @@ func TestWorkspaceLifecycleThroughAPI(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// Every sample must be valid against the CRD schemas (strict: no unknown fields).
-	samples, _ := filepath.Glob(filepath.Join(root, "config", "samples", "*.yaml"))
-	for _, f := range samples {
-		if strings.HasPrefix(filepath.Base(f), "workspace-") {
-			continue // workspaces are created through the API below
-		}
+	// Every registered template must be valid against the CRD schemas (strict: no unknown fields).
+	templates, _ := filepath.Glob(filepath.Join(root, "config", "templates", "*template-*.yaml"))
+	if len(templates) < 5 {
+		t.Fatalf("expected the templates in config/templates, found %v", templates)
+	}
+	for _, f := range templates {
 		applyYAML(t, k8s, f)
 	}
 
