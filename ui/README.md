@@ -14,5 +14,7 @@ Changes for running against KubeTRE's AzureTRE-compatible API, each marked
   KubeTRE uses one API audience rather than an Entra app registration per workspace. TRE-wide
   roles still come from the token.
 - `Dockerfile`, `nginx.conf`: container image for Kubernetes.
+- `src/models/resourceTemplate.validation.test.ts` is removed. It validated AzureTRE's Porter
+  bundle schemas from the upstream repository's `templates/` folder, which KubeTRE does not have.
 
 Run upstream's tests with `npm ci && npx vitest run`.
