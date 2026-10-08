@@ -1,0 +1,3 @@
+# The KubeVirt VM template, registered only in environments that install KubeVirt.
+resources:
+  - servicetemplate-linux-vm-kubevirt.yaml

@@ -1,0 +1,62 @@
+{{- $size := index .Values.sizes .Values.size -}}
+{{- if not $size }}{{ fail (printf "unknown size %q" .Values.size) }}{{ end -}}
+{{- $name := include "kvm.name" . -}}
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{ $name }}
+  labels: {{- include "kvm.labels" . | nindent 4 }}
+  annotations:
+    kubetre.io/owner: {{ .Values.kubetre.owner | quote }}
+spec:
+  runStrategy: Always
+  dataVolumeTemplates:
+    # The VM's own persistent disk, copied once from the image by the node's container
+    # runtime (so it uses the node's registry credentials and no extra egress).
+    - metadata:
+        name: {{ $name }}-root
+      spec:
+        source:
+          registry:
+            url: {{ printf "docker://%s" .Values.image | quote }}
+            pullMethod: node
+        storage:
+          {{- with .Values.storageClassName }}
+          storageClassName: {{ . }}
+          {{- end }}
+          resources:
+            requests:
+              storage: {{ printf "%dGi" (int .Values.diskGi) }}
+  template:
+    metadata:
+      labels:
+        {{- include "kvm.labels" . | nindent 8 }}
+        kubetre.io/vm: {{ $name }}
+    spec:
+      nodeSelector:
+        kubetre.io/node-pool: kubevirt
+      tolerations:
+        - {key: kubetre.io/node-pool, operator: Equal, value: kubevirt, effect: NoSchedule}
+      domain:
+        cpu:
+          cores: {{ int $size.cores }}
+        memory:
+          guest: {{ $size.memory }}
+        devices:
+          disks:
+            - {name: root, disk: {bus: virtio}}
+            - {name: cloudinit, disk: {bus: virtio}}
+          interfaces:
+            - {name: default, masquerade: {}, ports: [{name: ssh, port: 22}]}
+          autoattachSerialConsole: false
+          autoattachGraphicsDevice: false
+      networks:
+        - {name: default, pod: {}}
+      volumes:
+        - name: root
+          dataVolume:
+            name: {{ $name }}-root
+        - name: cloudinit
+          cloudInitNoCloud:
+            secretRef:
+              name: {{ $name }}-cloudinit

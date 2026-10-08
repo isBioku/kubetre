@@ -203,6 +203,36 @@ resource "azurerm_kubernetes_cluster_node_pool" "gateway" {
   }
 }
 
+# Runs only KubeVirt VMs, which need nested virtualization. Tainted, so nothing else lands
+# here; the VMs' pods use the ordinary pod subnet and workspace network policies.
+resource "azurerm_kubernetes_cluster_node_pool" "kubevirt" {
+  count                       = var.kubevirt_enabled ? 1 : 0
+  name                        = "kubevirt"
+  kubernetes_cluster_id       = azurerm_kubernetes_cluster.this.id
+  mode                        = "User"
+  vm_size                     = var.kubevirt_vm_size
+  vnet_subnet_id              = azurerm_subnet.nodes.id
+  pod_subnet_id               = azurerm_subnet.pods.id
+  zones                       = var.zones
+  os_sku                      = "AzureLinux"
+  auto_scaling_enabled        = true
+  min_count                   = var.kubevirt_node_count.min
+  max_count                   = var.kubevirt_node_count.max
+  node_public_ip_enabled      = false
+  host_encryption_enabled     = var.host_encryption_enabled
+  temporary_name_for_rotation = "kubevirttmp"
+  upgrade_settings {
+    max_surge                     = "10%"
+    node_soak_duration_in_minutes = 0
+  }
+  node_labels = { "kubetre.io/node-pool" = "kubevirt" }
+  node_taints = ["kubetre.io/node-pool=kubevirt:NoSchedule"]
+  tags        = local.tags
+  lifecycle {
+    ignore_changes = [node_count]
+  }
+}
+
 resource "azurerm_monitor_diagnostic_setting" "aks" {
   name                           = "diag-aks"
   target_resource_id             = azurerm_kubernetes_cluster.this.id

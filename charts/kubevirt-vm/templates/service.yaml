@@ -1,0 +1,12 @@
+# SSH to the VM, for the access gateway's guacd only (the workspace's network policies
+# admit nothing else).
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kvm.name" . }}-ssh
+  labels: {{- include "kvm.labels" . | nindent 4 }}
+spec:
+  selector:
+    kubetre.io/vm: {{ include "kvm.name" . }}
+  ports:
+    - {name: ssh, port: 22, targetPort: 22, protocol: TCP}

@@ -35,6 +35,8 @@ an official Microsoft release.
 
 | 4. Access gateway | OIDC broker plus stock Guacamole: owner-only sessions, targets confined to the workspace, clipboard and file transfer off; Envoy Gateway behind a single firewall DNAT rule |
 
+| 6. KubeVirt VMs (optional) | Linux VMs inside the cluster on KubeVirt, chosen per VM beside Azure VMs; behind `kubevirt_enabled` ([ADR 11](docs/adr/0011-kubevirt-vms.md)) |
+
 | 5. AzureTRE UI | Microsoft's AzureTRE UI served at `/`, backed by an AzureTRE-compatible API; workspaces, Virtual Desktops and personal VMs created from the UI |
 
 Hosting is cloud-only: AKS first, EKS and GKE later ([ADR 7](docs/adr/0007-cloud-targets.md)).

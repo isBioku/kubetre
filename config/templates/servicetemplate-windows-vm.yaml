@@ -8,6 +8,7 @@ spec:
   kind: UserResource
   parentTemplate: virtual-desktops
   requiresVirtualMachines: true
+  ownerAccount: true
   # The chart creates no pods, so the strictest level is fine.
   requiredPodSecurity: restricted
   chart:

@@ -98,6 +98,11 @@ spec:
                 - WorkspaceService
                 - UserResource
                 type: string
+              ownerAccount:
+                description: |-
+                  OwnerAccount marks templates whose chart creates a login account for its owner, named
+                  by the chart value "username". KubeTRE sets it from the owner's email at creation.
+                type: boolean
               parentTemplate:
                 description: ParentTemplate is the workspace service template a user
                   resource is created under.

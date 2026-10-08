@@ -8,7 +8,7 @@ import (
 // WorkspaceServiceSpec is the desired state of a service inside a workspace.
 // +kubebuilder:validation:XValidation:rule="self.templateRef == oldSelf.templateRef",message="templateRef is immutable"
 // +kubebuilder:validation:XValidation:rule="self.owner == oldSelf.owner",message="owner is immutable"
-// +kubebuilder:validation:XValidation:rule="(has(self.parentService) ? self.parentService : '') == (has(oldSelf.parentService) ? oldSelf.parentService : '')",message="parentService is immutable"
+// +kubebuilder:validation:XValidation:rule="(has(self.parentService) ? self.parentService : ”) == (has(oldSelf.parentService) ? oldSelf.parentService : ”)",message="parentService is immutable"
 type WorkspaceServiceSpec struct {
 	// TemplateRef is the name of the ServiceTemplate to install.
 	// +kubebuilder:validation:MinLength=1

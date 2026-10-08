@@ -203,7 +203,7 @@ func (s *Server) createService(w http.ResponseWriter, r *http.Request, id Identi
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "values do not match the template schema", "details": []string{err.Error()}})
 		return
 	}
-	if owner != "" && tmpl.Spec.RequiresVirtualMachines {
+	if owner != "" && tmpl.Spec.OwnerAccount {
 		var err error
 		if values, err = access.WithVMUsername(values, owner); err != nil {
 			s.internal(w, "set VM username", err)

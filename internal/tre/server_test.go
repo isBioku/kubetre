@@ -54,7 +54,7 @@ func newEnv(t *testing.T, objs ...client.Object) *env {
 			Kind: treV1.KindWorkspaceService, DisplayName: "Virtual Desktops"}},
 		&treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "windows-vm"}, Spec: treV1.ServiceTemplateSpec{
 			Kind: treV1.KindUserResource, ParentTemplate: "virtual-desktops", DisplayName: "Windows VM",
-			RequiresVirtualMachines: true, Chart: &treV1.ChartRef{URL: "oci://r/charts/research-vm", Version: "0.2.0"},
+			RequiresVirtualMachines: true, OwnerAccount: true, Chart: &treV1.ChartRef{URL: "oci://r/charts/research-vm", Version: "0.2.0"},
 			ValuesSchema: &apiextensionsv1.JSON{Raw: []byte(vmSize)}}},
 		&treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "linux-desktop"}, Spec: treV1.ServiceTemplateSpec{
 			Kind: treV1.KindUserResource, ParentTemplate: "virtual-desktops", DisplayName: "Linux desktop",

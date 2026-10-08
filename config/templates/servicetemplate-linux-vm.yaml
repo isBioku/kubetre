@@ -8,6 +8,7 @@ spec:
   kind: UserResource
   parentTemplate: virtual-desktops
   requiresVirtualMachines: true
+  ownerAccount: true
   requiredPodSecurity: restricted
   chart:
     url: oci://registry.example.org/charts/research-vm

@@ -74,6 +74,18 @@ MIRROR := guacamole/guacamole:1.6.0 guacamole/guacd:1.6.0 envoyproxy/gateway:v1.
 acr-mirror: ## Import the access gateway's third-party images and chart into ACR
 	for ref in $(MIRROR); do az acr import --name $(ACR_NAME) --source docker.io/$$ref --image $$ref --force; done
 
+# KubeVirt, CDI and the Ubuntu VM disk, for environments with kubevirt_enabled. Keep the
+# versions in step with deploy/azure/kubevirt.
+KUBEVIRT_VERSION := v1.9.0
+CDI_VERSION := v1.66.1
+KUBEVIRT_MIRROR := $(foreach c,virt-operator virt-api virt-controller virt-handler virt-launcher virt-exportproxy virt-exportserver virt-synchronization-controller,kubevirt/$(c):$(KUBEVIRT_VERSION)) \
+          $(foreach c,cdi-operator cdi-controller cdi-importer cdi-cloner cdi-apiserver cdi-uploadserver cdi-uploadproxy,kubevirt/$(c):$(CDI_VERSION)) \
+          containerdisks/ubuntu:24.04
+
+.PHONY: acr-mirror-kubevirt
+acr-mirror-kubevirt: ## Import KubeVirt, CDI and the Ubuntu VM disk image into ACR
+	for ref in $(KUBEVIRT_MIRROR); do az acr import --name $(ACR_NAME) --source quay.io/$$ref --image $$ref --force || exit 1; done
+
 .PHONY: charts-lint publish-charts
 charts-lint: ## Lint every chart, including the Windows VM variant
 	$(BIN)/helm lint --strict charts/*

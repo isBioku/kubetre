@@ -27,7 +27,7 @@ Status: Accepted, 2026-10-07. Supersedes the earlier KubeVirt decision.
   through a Crossplane `ResearchVM` and built by a per-cloud Composition. See ADR 8 for the
   network and hardening model.
 
-KubeVirt was rejected because Windows guests nested in AKS nodes need separately licensed
+KubeVirt was rejected (since revisited for optional Linux VMs: see ADR 11) because Windows guests nested in AKS nodes need separately licensed
 Windows with restricted hosting rights, nested virtualization costs performance and limits
 node choice, and GPUs are hard to pass through. Native VMs avoid all three.
 

@@ -87,6 +87,24 @@ variable "work_node_count" {
   default     = { min = 1, max = 10 }
 }
 
+variable "kubevirt_enabled" {
+  description = "Offer Linux VMs that run inside the cluster on KubeVirt, as well as Azure VMs. Adds a node pool for them and installs KubeVirt and CDI."
+  type        = bool
+  default     = false
+}
+
+variable "kubevirt_vm_size" {
+  description = "Node size for KubeVirt VMs. It must support nested virtualization (Dv5 and Dsv5 do)."
+  type        = string
+  default     = "Standard_D4s_v5"
+}
+
+variable "kubevirt_node_count" {
+  description = "Autoscaling bounds for the KubeVirt node pool."
+  type        = object({ min = number, max = number })
+  default     = { min = 1, max = 3 }
+}
+
 variable "gateway_vm_size" {
   type    = string
   default = "Standard_D4s_v5"
@@ -189,7 +207,7 @@ variable "gitops_path" {
 variable "kubetre_version" {
   description = "Image tag of KubeTRE's images in ACR. Keep it equal to the VERSION file, which `make acr-build` uses."
   type        = string
-  default     = "0.2.3"
+  default     = "0.2.4"
 }
 
 variable "oidc_issuer" {

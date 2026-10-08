@@ -292,6 +292,24 @@ TOKEN=$(az account get-access-token --scope api://<oidc_audience>/user_impersona
 curl -s https://<gateway_hostname>/api/v1/me -H "Authorization: Bearer $TOKEN"
 ```
 
+### Optional: Linux VMs on KubeVirt
+
+To let researchers choose a VM that runs inside the cluster as well as an Azure VM:
+
+1. Mirror KubeVirt, CDI and the Ubuntu disk image into ACR, and publish the charts again:
+
+   ```sh
+   make acr-mirror-kubevirt publish-charts ACR_NAME=<acr name>
+   ```
+
+2. Set `kubevirt_enabled = true` in `terraform.tfvars` and apply. This adds a tainted
+   `kubevirt` node pool (Standard_D4s_v5 by default, which supports nested virtualization)
+   and a Flux stage that installs KubeVirt, CDI and the template.
+3. In the UI, **Linux VM on KubeVirt** appears under Virtual Desktops. The first VM takes a few
+   minutes while CDI copies the disk image.
+
+See [ADR 11](adr/0011-kubevirt-vms.md) for how its isolation differs from an Azure VM's.
+
 ## 10. Verify the security controls
 
 Do these checks before anyone uses real data:

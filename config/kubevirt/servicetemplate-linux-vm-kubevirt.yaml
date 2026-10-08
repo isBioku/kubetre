@@ -1,0 +1,25 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: linux-vm-kubevirt
+spec:
+  displayName: Linux VM on KubeVirt (Ubuntu 24.04)
+  description: A personal Ubuntu VM that runs inside the cluster on KubeVirt. It starts faster and shares nodes with other VMs; reached over SSH through the access gateway.
+  kind: UserResource
+  parentTemplate: virtual-desktops
+  ownerAccount: true
+  # KubeVirt is set to give VM pods the RuntimeDefault seccomp profile, so they meet the
+  # restricted Pod Security level like any other workspace pod.
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://registry.example.org/charts/kubevirt-vm
+    version: 0.1.0
+    provider: azure
+  values:
+    image: registry.example.org/containerdisks/ubuntu:24.04
+  valuesSchema:
+    type: object
+    properties:
+      size: {type: string, title: Size, enum: [small, medium, large], default: medium}
+      diskGi: {type: integer, title: Disk (GiB), minimum: 20, maximum: 512, default: 32}
+    additionalProperties: false

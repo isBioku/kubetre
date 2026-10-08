@@ -43,7 +43,7 @@ var values = map[string]string{
 	"VM_ADDRESS_POOL":          "10.240.0.0/16",
 	"ENCRYPTION_AT_HOST":       "true",
 	"ACR_LOGIN_SERVER":         "acrkubetredev.azurecr.io",
-	"KUBETRE_VERSION":          "0.2.3",
+	"KUBETRE_VERSION":          "0.2.4",
 	"OIDC_ISSUER":              "https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0",
 	"OIDC_AUDIENCE":            "77777777-7777-7777-7777-777777777777",
 	"ROLES_CLAIM":              "roles",
@@ -60,7 +60,7 @@ var values = map[string]string{
 }
 
 // stages are the Flux kustomizations in apply order.
-var stages = []string{"crossplane", "packages", "edge", "platform", "gateway"}
+var stages = []string{"crossplane", "packages", "edge", "platform", "gateway", "kubevirt"}
 
 // terraformSubstitutions reads the keys of local.gitops_substitutions from gitops.tf.
 func terraformSubstitutions(t *testing.T) map[string]bool {
@@ -154,7 +154,7 @@ func TestSubstitutedManifestsMatchSchemas(t *testing.T) {
 	env := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join(crds, "crossplane"), filepath.Join(crds, "provider-azure"), filepath.Join(crds, "flux"),
-			filepath.Join(crds, "envoy-gateway"), filepath.Join(crds, "cilium"),
+			filepath.Join(crds, "envoy-gateway"), filepath.Join(crds, "cilium"), filepath.Join(crds, "kubevirt"),
 			filepath.Join(root, "config", "crd", "bases"),
 		},
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{

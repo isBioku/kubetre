@@ -1,0 +1,22 @@
+# Set by the ServiceTemplate (administrator).
+# A containerDisk image (a VM disk in an OCI image), copied once into the VM's own disk.
+image: registry.example.org/containerdisks/ubuntu:24.04
+username: researcher
+# vCPUs and guest memory per size. They must fit a KubeVirt node with room to spare.
+sizes:
+  small: {cores: 1, memory: 4Gi}
+  medium: {cores: 2, memory: 8Gi}
+  large: {cores: 3, memory: 12Gi}
+# Empty uses the cluster's default storage class.
+storageClassName: ""
+
+# Chosen by the researcher, within the ServiceTemplate's values schema.
+size: medium
+diskGi: 32
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted

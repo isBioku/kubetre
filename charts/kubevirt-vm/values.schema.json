@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "username", "sizes", "size", "diskGi", "kubetre"],
+  "properties": {
+    "image": {"type": "string", "minLength": 1},
+    "username": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,19}$"},
+    "sizes": {"type": "object"},
+    "storageClassName": {"type": "string"},
+    "size": {"type": "string", "enum": ["small", "medium", "large"]},
+    "diskGi": {"type": "integer", "minimum": 20, "maximum": 512},
+    "kubetre": {"type": "object"}
+  }
+}

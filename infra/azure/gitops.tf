@@ -130,5 +130,19 @@ resource "azurerm_kubernetes_flux_configuration" "kubetre" {
     }
   }
 
+  # KubeVirt and CDI, plus the KubeVirt VM template, only when enabled.
+  dynamic "kustomizations" {
+    for_each = var.kubevirt_enabled ? ["kubevirt"] : []
+    content {
+      name                      = "kubevirt"
+      path                      = "${var.gitops_path}/kubevirt"
+      depends_on                = ["platform"]
+      retry_interval_in_seconds = 60
+      post_build {
+        substitute = local.gitops_substitutions
+      }
+    }
+  }
+
   depends_on = [azurerm_kubernetes_cluster_extension.flux]
 }

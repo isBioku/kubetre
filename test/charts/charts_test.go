@@ -103,6 +103,8 @@ func TestLinuxDesktopPassesRestrictedPodSecurity(t *testing.T) {
 // template must therefore render its chart with only the administrator's values.
 func TestTemplatesRenderWithAdminValuesOnly(t *testing.T) {
 	files, _ := filepath.Glob(filepath.Join("..", "..", "config", "templates", "servicetemplate-*.yaml"))
+	more, _ := filepath.Glob(filepath.Join("..", "..", "config", "kubevirt", "servicetemplate-*.yaml"))
+	files = append(files, more...)
 	if len(files) == 0 {
 		t.Fatal("no service templates found")
 	}
@@ -137,5 +139,75 @@ func TestTemplatesRenderWithAdminValuesOnly(t *testing.T) {
 				t.Fatalf("chart %s does not render with %s's values: %v\n%s", chart, tmpl.Metadata.Name, err, out)
 			}
 		})
+	}
+}
+
+// A KubeVirt VM: an owner-named account with password SSH, reached only through its own
+// Service in the workspace, on the KubeVirt pool, with a persistent disk copied from ACR.
+func TestKubeVirtVMChart(t *testing.T) {
+	docs := render(t, "kubevirt-vm", "username=rita", "size=small", "diskGi=40",
+		"image=acr.example.io/containerdisks/ubuntu:24.04", "kubetre.owner=rita@example.com")
+	byKind := map[string][]map[string]any{}
+	for _, d := range docs {
+		m := map[string]any{}
+		if err := yaml.Unmarshal(d, &m); err != nil {
+			t.Fatal(err)
+		}
+		k, _ := m["kind"].(string)
+		byKind[k] = append(byKind[k], m)
+	}
+	if len(byKind["VirtualMachine"]) != 1 || len(byKind["Service"]) != 1 || len(byKind["Secret"]) != 2 {
+		t.Fatalf("unexpected objects: %v", byKind)
+	}
+	vm := byKind["VirtualMachine"][0]
+	get := func(m any, path ...any) any {
+		for _, p := range path {
+			switch k := p.(type) {
+			case string:
+				m = m.(map[string]any)[k]
+			case int:
+				m = m.([]any)[k]
+			}
+		}
+		return m
+	}
+	spec := get(vm, "spec", "template", "spec")
+	if get(spec, "nodeSelector", "kubetre.io/node-pool") != "kubevirt" {
+		t.Error("the VM must run on the kubevirt pool")
+	}
+	if get(spec, "domain", "cpu", "cores") != float64(1) || get(spec, "domain", "memory", "guest") != "4Gi" {
+		t.Errorf("size small: %v", get(spec, "domain"))
+	}
+	iface := get(spec, "domain", "devices", "interfaces", 0).(map[string]any)
+	if _, ok := iface["masquerade"]; !ok || len(iface["ports"].([]any)) != 1 {
+		t.Errorf("the VM must expose only SSH through masquerade: %v", iface)
+	}
+	dv := get(vm, "spec", "dataVolumeTemplates", 0, "spec")
+	if get(dv, "source", "registry", "url") != "docker://acr.example.io/containerdisks/ubuntu:24.04" ||
+		get(dv, "source", "registry", "pullMethod") != "node" || get(dv, "storage", "resources", "requests", "storage") != "40Gi" {
+		t.Errorf("disk: %v", dv)
+	}
+
+	var conn, cloud map[string]any
+	for _, s := range byKind["Secret"] {
+		if get(s, "metadata", "labels").(map[string]any)["kubetre.io/connection"] == "true" {
+			conn = s
+		} else {
+			cloud = s
+		}
+	}
+	data := conn["stringData"].(map[string]any)
+	if data["protocol"] != "ssh" || data["port"] != "22" || data["username"] != "rita" ||
+		data["hostname"] != "test-ssh.ws-chk.svc.cluster.local" {
+		t.Errorf("connection: %v", data)
+	}
+	ud := get(cloud, "stringData", "userdata").(string)
+	for _, want := range []string{"#cloud-config", "disable_root: true", "- name: rita", data["password"].(string)} {
+		if !strings.Contains(ud, want) {
+			t.Errorf("cloud-init is missing %q", want)
+		}
+	}
+	if sel := get(byKind["Service"][0], "spec", "selector", "kubetre.io/vm"); sel != "test" {
+		t.Errorf("service selector = %v", sel)
 	}
 }

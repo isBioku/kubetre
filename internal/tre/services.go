@@ -361,7 +361,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, id access.Identi
 		writeError(w, http.StatusUnprocessableEntity, "properties do not match the template: "+err.Error())
 		return
 	}
-	if parent != nil && tmpl.Spec.RequiresVirtualMachines {
+	if parent != nil && tmpl.Spec.OwnerAccount {
 		// The VM's account is named after its owner, as people expect at the Windows or
 		// Linux login, instead of a shared name.
 		var err error

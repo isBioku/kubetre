@@ -1,0 +1,54 @@
+# KubeVirt and CDI, from this environment's ACR, plus the KubeVirt VM template.
+# Enabled by kubevirt_enabled in infra/azure. upstream/ holds the release manifests unchanged:
+#   https://github.com/kubevirt/kubevirt/releases/download/v1.9.0/kubevirt-operator.yaml
+#   https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.1/cdi-operator.yaml
+resources:
+  - upstream/kubevirt-operator.yaml
+  - upstream/cdi-operator.yaml
+  - kubevirt.yaml
+  - ../../../config/kubevirt
+patches:
+  # virt-operator pulls the other KubeVirt components from the registry of this image.
+  - target: {kind: Deployment, name: virt-operator}
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: virt-operator, namespace: kubevirt}
+      spec:
+        template:
+          spec:
+            containers:
+              - name: virt-operator
+                env:
+                  - {name: VIRT_OPERATOR_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/virt-operator:v1.9.0"}
+  - target: {kind: Deployment, name: cdi-operator}
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: cdi-operator, namespace: cdi}
+      spec:
+        template:
+          spec:
+            containers:
+              - name: cdi-operator
+                env:
+                  - {name: CONTROLLER_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-controller:v1.66.1"}
+                  - {name: IMPORTER_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-importer:v1.66.1"}
+                  - {name: CLONER_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-cloner:v1.66.1"}
+                  - {name: OVIRT_POPULATOR_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-importer:v1.66.1"}
+                  - {name: APISERVER_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-apiserver:v1.66.1"}
+                  - {name: UPLOAD_SERVER_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-uploadserver:v1.66.1"}
+                  - {name: UPLOAD_PROXY_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/cdi-uploadproxy:v1.66.1"}
+  - target: {kind: ServiceTemplate, name: linux-vm-kubevirt}
+    patch: |
+      - op: replace
+        path: /spec/chart/url
+        value: oci://${ACR_LOGIN_SERVER}/charts/kubevirt-vm
+      - op: replace
+        path: /spec/values/image
+        value: ${ACR_LOGIN_SERVER}/containerdisks/ubuntu:24.04
+images:
+  - name: quay.io/kubevirt/virt-operator
+    newName: ${ACR_LOGIN_SERVER}/kubevirt/virt-operator
+  - name: quay.io/kubevirt/cdi-operator
+    newName: ${ACR_LOGIN_SERVER}/kubevirt/cdi-operator

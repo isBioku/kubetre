@@ -67,4 +67,14 @@ for d in yaml.safe_load_all(sys.stdin):
 mkdir -p "$out/cilium"
 curl -sSL -o "$out/cilium/ciliumnetworkpolicies.cilium.io.yaml" \
   "https://raw.githubusercontent.com/cilium/cilium/$CILIUM/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnetworkpolicies.yaml"
+# KubeVirt and CDI CRDs, from the release manifests vendored in deploy/azure/kubevirt/upstream.
+mkdir -p "$out/kubevirt"
+python3 - "$out/kubevirt" "$(dirname "$0")/../deploy/azure/kubevirt/upstream" <<'PY'
+import sys, yaml
+out, src = sys.argv[1], sys.argv[2]
+for f, name in [("kubevirt-operator.yaml", "kubevirts.kubevirt.io"), ("cdi-operator.yaml", "cdis.cdi.kubevirt.io")]:
+    for d in yaml.safe_load_all(open(src + "/" + f)):
+        if d and d.get("kind") == "CustomResourceDefinition" and d["metadata"]["name"] == name:
+            open(out + "/" + name + ".yaml", "w").write(yaml.safe_dump(d, sort_keys=False))
+PY
 echo "updated $out"

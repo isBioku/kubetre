@@ -343,3 +343,40 @@ run "open_api_server_is_rejected" {
   }
   expect_failures = [var.operator_ip_ranges]
 }
+
+run "kubevirt_is_off_by_default" {
+  command = apply
+
+  assert {
+    condition     = length(azurerm_kubernetes_cluster_node_pool.kubevirt) == 0
+    error_message = "No KubeVirt node pool unless kubevirt_enabled is set."
+  }
+  assert {
+    condition     = !contains([for k in azurerm_kubernetes_flux_configuration.kubetre[0].kustomizations : k.name], "kubevirt")
+    error_message = "No KubeVirt Flux stage unless kubevirt_enabled is set."
+  }
+}
+
+run "kubevirt_runs_on_its_own_tainted_pool" {
+  command = apply
+  variables {
+    kubevirt_enabled = true
+  }
+
+  assert {
+    condition     = contains(azurerm_kubernetes_cluster_node_pool.kubevirt[0].node_taints, "kubetre.io/node-pool=kubevirt:NoSchedule")
+    error_message = "The KubeVirt pool must be tainted so only VMs land on it."
+  }
+  assert {
+    condition     = azurerm_kubernetes_cluster_node_pool.kubevirt[0].pod_subnet_id != azurerm_subnet.gateway_pods.id
+    error_message = "KubeVirt VMs must not draw addresses from the gateway pod subnet that workspace VM NSGs trust."
+  }
+  assert {
+    condition     = !azurerm_kubernetes_cluster_node_pool.kubevirt[0].node_public_ip_enabled
+    error_message = "KubeVirt nodes must have no public IPs."
+  }
+  assert {
+    condition     = one([for k in azurerm_kubernetes_flux_configuration.kubetre[0].kustomizations : k.depends_on if k.name == "kubevirt"]) == tolist(["platform"])
+    error_message = "The KubeVirt stage must follow the platform stage, which defines ServiceTemplate."
+  }
+}

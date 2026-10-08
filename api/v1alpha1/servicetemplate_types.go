@@ -32,7 +32,7 @@ const (
 )
 
 // ServiceTemplateSpec defines a service that can be installed into workspaces.
-// +kubebuilder:validation:XValidation:rule="self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate != '')",message="user resource templates need a parentTemplate"
+// +kubebuilder:validation:XValidation:rule="self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate != ”)",message="user resource templates need a parentTemplate"
 type ServiceTemplateSpec struct {
 	// Kind is WorkspaceService or UserResource. User resources are personal and are created
 	// under a workspace service of their parentTemplate.
@@ -87,6 +87,11 @@ type ServiceTemplateSpec struct {
 	// workspaces whose template enables virtual machines, which gives them a VM subnet.
 	// +optional
 	RequiresVirtualMachines bool `json:"requiresVirtualMachines,omitempty"`
+
+	// OwnerAccount marks templates whose chart creates a login account for its owner, named
+	// by the chart value "username". KubeTRE sets it from the owner's email at creation.
+	// +optional
+	OwnerAccount bool `json:"ownerAccount,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -1,0 +1,34 @@
+# KubeVirt runs VMs only on the tainted kubevirt node pool, and gives each VM's pod the
+# RuntimeDefault seccomp profile so it passes the workspace's restricted Pod Security level.
+apiVersion: kubevirt.io/v1
+kind: KubeVirt
+metadata:
+  name: kubevirt
+  namespace: kubevirt
+spec:
+  imagePullPolicy: IfNotPresent
+  configuration:
+    seccompConfiguration:
+      virtualMachineInstanceProfile:
+        customProfile:
+          runtimeDefaultProfile: true
+  workloads:
+    nodePlacement:
+      nodeSelector: {kubetre.io/node-pool: kubevirt}
+      tolerations:
+        - {key: kubetre.io/node-pool, operator: Equal, value: kubevirt, effect: NoSchedule}
+---
+# CDI copies VM disk images into persistent volumes. Its importer pods run on the kubevirt
+# pool too, so an Azure disk is created in the same zone as the node that will use it.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: CDI
+metadata:
+  name: cdi
+spec:
+  imagePullPolicy: IfNotPresent
+  config:
+    featureGates: [HonorWaitForFirstConsumer]
+  workload:
+    nodeSelector: {kubetre.io/node-pool: kubevirt}
+    tolerations:
+      - {key: kubetre.io/node-pool, operator: Equal, value: kubevirt, effect: NoSchedule}
