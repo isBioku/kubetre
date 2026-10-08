@@ -73,9 +73,12 @@ spec:
     consistentHash:
       type: Cookie
       cookie:
-        name: kubetre-guacamole-affinity
+        # One cookie for every Guacamole path. Without an explicit Path the browser scopes it
+        # to the first URL that set it (for example /guacamole/api), and the tunnel, sent
+        # without it, lands on another replica.
+        name: kubetre-guacamole-replica
         ttl: 12h
-        attributes: {SameSite: Strict}
+        attributes: {Path: /guacamole/, SameSite: Strict}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

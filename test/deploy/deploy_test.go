@@ -331,7 +331,11 @@ func TestGuacamoleRouteIsSticky(t *testing.T) {
 		}
 		refs, _, _ := unstructured.NestedSlice(u.Object, "spec", "targetRefs")
 		typ, _, _ := unstructured.NestedString(u.Object, "spec", "loadBalancer", "consistentHash", "type")
+		path, _, _ := unstructured.NestedString(u.Object, "spec", "loadBalancer", "consistentHash", "cookie", "attributes", "Path")
 		if len(refs) == 1 && refs[0].(map[string]any)["name"] == "guacamole" && typ == "Cookie" {
+			if path != "/guacamole/" {
+				t.Fatalf("affinity cookie path = %q; every Guacamole request, including the tunnel, must carry it", path)
+			}
 			return
 		}
 	}
