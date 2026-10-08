@@ -12,6 +12,12 @@ spec:
       virtualMachineInstanceProfile:
         customProfile:
           runtimeDefaultProfile: true
+  # virt-api and virt-controller on the AKS system pool, like other cluster add-ons.
+  infra:
+    nodePlacement:
+      nodeSelector: {kubernetes.azure.com/mode: system}
+      tolerations:
+        - {key: CriticalAddonsOnly, operator: Exists}
   workloads:
     nodePlacement:
       nodeSelector: {kubetre.io/node-pool: kubevirt}

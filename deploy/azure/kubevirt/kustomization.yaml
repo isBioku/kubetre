@@ -21,6 +21,16 @@ patches:
               - name: virt-operator
                 env:
                   - {name: VIRT_OPERATOR_IMAGE, value: "${ACR_LOGIN_SERVER}/kubevirt/virt-operator:v1.9.0"}
+  # Upstream requires control-plane nodes, which AKS does not expose; use the system pool.
+  - target: {kind: Deployment, name: virt-operator}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/affinity/nodeAffinity
+        value:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.azure.com/mode, operator: In, values: [system]}
   - target: {kind: Deployment, name: cdi-operator}
     patch: |
       apiVersion: apps/v1

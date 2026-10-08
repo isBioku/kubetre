@@ -341,3 +341,27 @@ func TestGuacamoleRouteIsSticky(t *testing.T) {
 	}
 	t.Fatal("no cookie-affinity BackendTrafficPolicy on the guacamole route")
 }
+
+// AKS exposes no control-plane nodes, so KubeVirt's control components must target the
+// system pool, and VMs only the tainted kubevirt pool.
+func TestKubeVirtPlacementFitsAKS(t *testing.T) {
+	var operatorOK, crOK bool
+	for _, u := range docs(build(t, "kubevirt")) {
+		raw, _ := yaml.Marshal(u.Object)
+		text := string(raw)
+		switch {
+		case u.GetKind() == "Deployment" && u.GetName() == "virt-operator":
+			operatorOK = strings.Contains(text, "kubernetes.azure.com/mode") && !strings.Contains(text, "node-role.kubernetes.io/control-plane\n                operator: Exists")
+		case u.GetKind() == "KubeVirt":
+			infra, _, _ := unstructured.NestedString(u.Object, "spec", "infra", "nodePlacement", "nodeSelector", "kubernetes.azure.com/mode")
+			work, _, _ := unstructured.NestedString(u.Object, "spec", "workloads", "nodePlacement", "nodeSelector", "kubetre.io/node-pool")
+			crOK = infra == "system" && work == "kubevirt"
+		}
+	}
+	if !operatorOK {
+		t.Error("virt-operator must be scheduled on the AKS system pool, not control-plane nodes")
+	}
+	if !crOK {
+		t.Error("KubeVirt infra must run on the system pool and VMs on the kubevirt pool")
+	}
+}
