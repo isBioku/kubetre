@@ -25,6 +25,7 @@ fetch crossplane/crossplane "$CROSSPLANE" crossplane \
   cluster/crds/apiextensions.crossplane.io_compositeresourcedefinitions.yaml \
   cluster/crds/apiextensions.crossplane.io_compositions.yaml \
   cluster/crds/apiextensions.crossplane.io_environmentconfigs.yaml \
+  cluster/crds/apiextensions.crossplane.io_managedresourceactivationpolicies.yaml \
   cluster/crds/pkg.crossplane.io_providers.yaml \
   cluster/crds/pkg.crossplane.io_functions.yaml \
   cluster/crds/pkg.crossplane.io_deploymentruntimeconfigs.yaml

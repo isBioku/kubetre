@@ -1,0 +1,18 @@
+# Activates only the managed resource kinds KubeTRE's compositions create. Crossplane's chart
+# would otherwise activate every kind in every provider ("*"): the network and compute
+# providers alone bring 288 CRDs, which a small AKS control plane struggles to serve.
+# Add a kind here when a composition starts using it (test/crossplane checks this).
+apiVersion: apiextensions.crossplane.io/v1alpha1
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: kubetre
+spec:
+  activate:
+    - linuxvirtualmachines.compute.azure.m.upbound.io
+    - windowsvirtualmachines.compute.azure.m.upbound.io
+    - firewallpolicyrulecollectiongroups.network.azure.m.upbound.io
+    - networkinterfaces.network.azure.m.upbound.io
+    - securitygroups.network.azure.m.upbound.io
+    - subnets.network.azure.m.upbound.io
+    - subnetnetworksecuritygroupassociations.network.azure.m.upbound.io
+    - subnetroutetableassociations.network.azure.m.upbound.io

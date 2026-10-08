@@ -32,3 +32,8 @@ spec:
   upgrade:
     crds: CreateReplace
     remediation: {retries: 3}
+  values:
+    provider:
+      # No catch-all activation policy: crossplane/install/activation.yaml activates only the
+      # managed resource kinds KubeTRE uses.
+      defaultActivations: []

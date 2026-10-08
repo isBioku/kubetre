@@ -189,7 +189,7 @@ variable "gitops_path" {
 variable "kubetre_version" {
   description = "Image tag of KubeTRE's images in ACR. Keep it equal to the VERSION file, which `make acr-build` uses."
   type        = string
-  default     = "0.2.0"
+  default     = "0.2.1"
 }
 
 variable "oidc_issuer" {

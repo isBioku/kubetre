@@ -4,9 +4,12 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -37,7 +40,15 @@ func main() {
 	must(clientgoscheme.AddToScheme(scheme))
 	must(treV1.AddToScheme(scheme))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	cfg := ctrl.GetConfigOrDie()
+	// A small managed control plane can be briefly unavailable. Wait for API discovery
+	// rather than exiting into a crash loop, because controller setup needs it.
+	if err := waitForAPIServer(cfg, 5*time.Minute); err != nil {
+		log.Error(err, "Kubernetes API server unavailable")
+		os.Exit(1)
+	}
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
@@ -80,5 +91,24 @@ func main() {
 func must(err error) {
 	if err != nil {
 		panic(err)
+	}
+}
+
+func waitForAPIServer(cfg *rest.Config, timeout time.Duration) error {
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	deadline := time.Now().Add(timeout)
+	for delay := time.Second; ; delay = min(delay*2, 30*time.Second) {
+		_, err := dc.ServerGroups()
+		if err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return err
+		}
+		ctrl.Log.WithName("setup").Info("waiting for the Kubernetes API server", "error", err.Error(), "retryIn", delay.String())
+		time.Sleep(delay)
 	}
 }

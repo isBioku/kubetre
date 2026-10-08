@@ -374,3 +374,61 @@ func TestResearchVMValidationRules(t *testing.T) {
 		}
 	}
 }
+
+// The activation policy must cover exactly the managed resource kinds the compositions
+// create: a missing kind would leave a composition unable to create it, and anything more
+// brings back the CRD load the policy exists to avoid.
+func TestActivationPolicyCoversExactlyTheComposedKinds(t *testing.T) {
+	composed, _ := render(t, "composition-workspacenetwork.yaml", xr("WorkspaceNetwork", "vm-network",
+		map[string]any{"addressPrefix": "10.240.0.64/26", "firewallPriority": float64(1001), "allowedFQDNs": []any{"pypi.org"}}), nil)
+	for _, osName := range []string{"windows", "linux"} {
+		vm, _ := render(t, "composition-researchvm.yaml", xr("ResearchVM", "rita-vm", map[string]any{
+			"os": osName, "size": "medium", "diskGi": float64(128), "adminUsername": "researcher",
+			"passwordSecretName": "rita-vm-credentials", "owner": "rita@example.com",
+			"image": map[string]any{"publisher": "p", "offer": "o", "sku": "s", "version": "latest"}}), nil)
+		composed = append(composed, vm...)
+	}
+	want := map[string]bool{}
+	for _, u := range composed {
+		gvk := u.GroupVersionKind()
+		if !strings.HasSuffix(gvk.Group, ".upbound.io") {
+			continue
+		}
+		m, err := k8s.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			t.Fatalf("no CRD for %v: %v", gvk, err)
+		}
+		want[m.Resource.Resource+"."+gvk.Group] = true
+	}
+
+	policies := readYAML(filepath.Join(root, "crossplane", "install", "activation.yaml"))
+	if len(policies) != 1 {
+		t.Fatalf("want one activation policy, got %d", len(policies))
+	}
+	list, _, _ := unstructured.NestedStringSlice(policies[0].Object, "spec", "activate")
+	got := map[string]bool{}
+	for _, a := range list {
+		if strings.Contains(a, "*") {
+			t.Errorf("activation %q is a wildcard", a)
+		}
+		got[a] = true
+	}
+	for k := range want {
+		if !got[k] {
+			t.Errorf("composed kind %s is not activated", k)
+		}
+	}
+	for k := range got {
+		if !want[k] {
+			t.Errorf("%s is activated but no composition creates it", k)
+		}
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, "deploy", "azure", "crossplane", "crossplane.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "defaultActivations: []") {
+		t.Error("the Crossplane HelmRelease must disable the chart's catch-all activation policy")
+	}
+}

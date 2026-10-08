@@ -345,6 +345,7 @@ Delete in this order, or Azure will refuse to delete the network while VMs still
 | The gateway page does not load | Check the DNS record, that `kubetre-gateway-tls` exists, `kubectl -n kubetre-gateway get gateway kubetre -o yaml` for listener status, and that the Envoy service's IP equals the gateway ILB address. |
 | Sign-in to the UI fails with a redirect URI error | The UI app's single-page redirect URIs must include `https://<gateway_hostname>`. Rerun the setup script with the right hostname. |
 | **Connect** fails with a redirect URI error | The gateway app's redirect URI must be exactly `https://<gateway_hostname>/gateway/callback`. Rerun the setup script. |
+| `kubectl` returns `ServiceUnavailable`, or the controller restarts with "failed to get server groups" | The API server is overloaded. Crossplane's providers can register hundreds of CRDs; KubeTRE activates only the eight it uses (`crossplane/install/activation.yaml`). On a cluster first installed with the chart's catch-all policy, delete it with `kubectl delete managedresourceactivationpolicy default`. A cluster on the Free tier has a small control plane with no SLA; the default profile uses Standard. |
 | The UI says you have no access | Assign the user the `TREUser` or `TREAdmin` role on the API app. |
 | The API returns 401 | The token's audience must be the API app ID and its issuer must end in `/v2.0`. Use the `az account get-access-token --scope` command above. |
 | `isAdmin` is false | Assign the `TREAdmin` role, then get a new token; roles are read from the token. |
