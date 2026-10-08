@@ -22,7 +22,8 @@ import (
 var serviceSystemProps = map[string]bool{"display_name": true, "description": true, "overview": true}
 
 // Service properties KubeTRE derives and returns, never accepted as input.
-var serviceDerivedProps = map[string]bool{"connection_uri": true, "is_exposed_externally": true, "owner_id": true}
+var serviceDerivedProps = map[string]bool{"connection_uri": true, "is_exposed_externally": true, "owner_id": true,
+	access.VMUsernameValue: true}
 
 func servicePath(ws, svc string) string { return workspacePath(ws) + "/workspace-services/" + svc }
 
@@ -360,6 +361,15 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, id access.Identi
 		writeError(w, http.StatusUnprocessableEntity, "properties do not match the template: "+err.Error())
 		return
 	}
+	if parent != nil && tmpl.Spec.RequiresVirtualMachines {
+		// The VM's account is named after its owner, as people expect at the Windows or
+		// Linux login, instead of a shared name.
+		var err error
+		if raw, err = access.WithVMUsername(raw, id.Principal()); err != nil {
+			s.internal(w, "set VM username", err)
+			return
+		}
+	}
 	svc := &treV1.WorkspaceService{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: slug(display, 30), Namespace: controller.NamespaceFor(ws),
@@ -448,7 +458,15 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request, id access.Identit
 				current[k] = v
 			}
 			raw, _ := json.Marshal(current)
-			if err := schema.Validate("service-"+tmpl.Name, rawOf(tmpl.Spec.ValuesSchema), raw); err != nil {
+			// Values KubeTRE manages itself are not part of the template's schema.
+			chosen := map[string]any{}
+			for k, v := range current {
+				if !serviceDerivedProps[k] {
+					chosen[k] = v
+				}
+			}
+			chosenRaw, _ := json.Marshal(chosen)
+			if err := schema.Validate("service-"+tmpl.Name, rawOf(tmpl.Spec.ValuesSchema), chosenRaw); err != nil {
 				writeError(w, http.StatusUnprocessableEntity, "properties do not match the template: "+err.Error())
 				return
 			}

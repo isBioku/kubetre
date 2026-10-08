@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
+	"github.com/isBioku/kubetre/internal/access"
 	"github.com/isBioku/kubetre/internal/controller"
 	"github.com/isBioku/kubetre/internal/schema"
 )
@@ -201,6 +202,13 @@ func (s *Server) createService(w http.ResponseWriter, r *http.Request, id Identi
 	if err := validateAgainstSchema("service-"+tmpl.Name, rawOrNil(tmpl.Spec.ValuesSchema), values); err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": "values do not match the template schema", "details": []string{err.Error()}})
 		return
+	}
+	if owner != "" && tmpl.Spec.RequiresVirtualMachines {
+		var err error
+		if values, err = access.WithVMUsername(values, owner); err != nil {
+			s.internal(w, "set VM username", err)
+			return
+		}
 	}
 
 	svc := &treV1.WorkspaceService{

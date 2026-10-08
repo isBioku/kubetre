@@ -317,3 +317,38 @@ func TestTemplatesRenderAsAzureTREForms(t *testing.T) {
 	}
 	e.expect(404, "GET", "/api/workspace-service-templates/windows-vm", rita, "")
 }
+
+// A VM's account is named after its owner, set once at creation and never by the caller.
+func TestVMAccountIsNamedAfterItsOwner(t *testing.T) {
+	e := newEnv(t, vmWorkspace("study1"))
+	base := "/api/workspaces/study1/workspace-services"
+	svcName := m(e.expect(202, "POST", base, owner,
+		`{"templateName":"virtual-desktops","properties":{"display_name":"Virtual Desktops","description":"d"}}`)["operation"])["resourceId"].(string)
+	e.setPhase(&treV1.WorkspaceService{ObjectMeta: metav1.ObjectMeta{Namespace: controller.NamespacePrefix + "study1", Name: svcName}}, treV1.PhaseReady)
+	urBase := base + "/" + svcName + "/user-resources"
+
+	vm := m(e.expect(202, "POST", urBase, rita,
+		`{"templateName":"windows-vm","properties":{"display_name":"VM","description":"d","size":"medium","username":"administrator"}}`)["operation"])["resourceId"].(string)
+	desk := m(e.expect(202, "POST", urBase, rita,
+		`{"templateName":"linux-desktop","properties":{"display_name":"Desk","description":"d"}}`)["operation"])["resourceId"].(string)
+
+	values := func(name string) map[string]any {
+		svc := &treV1.WorkspaceService{}
+		if err := e.c.Get(context.Background(), types.NamespacedName{Namespace: controller.NamespacePrefix + "study1", Name: name}, svc); err != nil {
+			t.Fatal(err)
+		}
+		return rawMap(svc.Spec.Values.Raw)
+	}
+	if got := values(vm)["username"]; got != "rita" {
+		t.Fatalf("VM username = %v, want rita", got)
+	}
+	if _, ok := values(desk)["username"]; ok {
+		t.Fatal("a container desktop should not get a VM username")
+	}
+
+	// Later updates still validate, and cannot rename the account.
+	e.expect(202, "PATCH", urBase+"/"+vm, rita, `{"properties":{"size":"small","username":"root"}}`)
+	if got := values(vm); got["username"] != "rita" || got["size"] != "small" {
+		t.Fatalf("after update: %v", got)
+	}
+}
