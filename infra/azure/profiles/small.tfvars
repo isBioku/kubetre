@@ -18,7 +18,10 @@ research_vm_sizes = {
   large  = "Standard_D4s_v5"
 }
 
-# Cheaper for test windows. Keep both on for anything holding real data.
-aks_sku_tier       = "Free"
+# Standard even for tests: on the Free tier the API server kept dropping out under Flux and
+# Crossplane, so Crossplane, Flux and the KubeTRE controller lost leader election in a loop.
+aks_sku_tier = "Standard"
+
+# Cheaper for test windows. Keep it on for anything holding real data.
 defender_enabled   = false
 log_retention_days = 30
