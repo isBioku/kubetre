@@ -13,7 +13,7 @@ spec:
   requiredPodSecurity: restricted
   chart:
     url: oci://registry.example.org/charts/kubevirt-vm
-    version: 0.1.0
+    version: 0.1.1
     provider: azure
   values:
     image: registry.example.org/containerdisks/ubuntu:24.04

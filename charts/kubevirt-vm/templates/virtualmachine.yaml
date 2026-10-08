@@ -42,6 +42,14 @@ spec:
           cores: {{ int $size.cores }}
         memory:
           guest: {{ $size.memory }}
+        # Explicit limits, so the workspace LimitRange's small defaults never apply to the
+        # VM's pod. KubeVirt adds its own overhead on top of these.
+        resources:
+          requests:
+            memory: {{ $size.memory }}
+          limits:
+            cpu: {{ $size.cores | quote }}
+            memory: {{ $size.memory }}
         devices:
           disks:
             - {name: root, disk: {bus: virtio}}

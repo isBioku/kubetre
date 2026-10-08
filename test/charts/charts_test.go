@@ -178,6 +178,9 @@ func TestKubeVirtVMChart(t *testing.T) {
 	if get(spec, "domain", "cpu", "cores") != float64(1) || get(spec, "domain", "memory", "guest") != "4Gi" {
 		t.Errorf("size small: %v", get(spec, "domain"))
 	}
+	if get(spec, "domain", "resources", "limits", "memory") != "4Gi" || get(spec, "domain", "resources", "limits", "cpu") != "1" {
+		t.Errorf("the VM must set its own limits, or the workspace LimitRange default applies: %v", get(spec, "domain", "resources"))
+	}
 	iface := get(spec, "domain", "devices", "interfaces", 0).(map[string]any)
 	if _, ok := iface["masquerade"]; !ok || len(iface["ports"].([]any)) != 1 {
 		t.Errorf("the VM must expose only SSH through masquerade: %v", iface)
