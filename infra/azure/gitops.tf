@@ -58,6 +58,8 @@ locals {
     IDP_HOST                 = local.idp_host
     GATEWAY_HOSTNAME         = var.gateway_hostname
     GATEWAY_OIDC_CLIENT_ID   = var.gateway_oidc_client_id
+    UI_CLIENT_ID             = var.ui_client_id
+    TRE_ID                   = var.name
     GATEWAY_ILB_IP           = local.gateway_ilb_ip
     ILB_SUBNET_NAME          = azurerm_subnet.shared_ilb.name
     VM_SIZE_SMALL            = var.research_vm_sizes.small

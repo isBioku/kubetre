@@ -59,7 +59,7 @@ func (a *OIDCAuthenticator) Authenticate(r *http.Request) (Identity, error) {
 	if err := tok.Claims(&claims); err != nil {
 		return Identity{}, fmt.Errorf("%w: %v", ErrUnauthenticated, err)
 	}
-	id := Identity{Subject: tok.Subject, Name: str(claims["name"]), Roles: stringsAt(claims, a.rolesClaim)}
+	id := Identity{Subject: tok.Subject, Name: str(claims["name"]), Roles: stringsAt(claims, a.rolesClaim), ObjectID: str(claims["oid"])}
 	if id.Email = str(claims["email"]); id.Email == "" {
 		id.Email = str(claims["preferred_username"])
 	}

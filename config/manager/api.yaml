@@ -8,6 +8,11 @@ data:
   OIDC_ISSUER: "https://idp.example.com/realms/tre"
   OIDC_AUDIENCE: "kubetre-api"
   ROLES_CLAIM: "roles"
+  # AzureTRE API settings: the scope the UI requests tokens for (default api://<audience>)
+  # and the broker URL that user resources' Connect links point at.
+  API_SCOPE: ""
+  GATEWAY_URL: ""
+  VERSION: "dev"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,6 +40,9 @@ spec:
             - --oidc-issuer=$(OIDC_ISSUER)
             - --oidc-audience=$(OIDC_AUDIENCE)
             - --roles-claim=$(ROLES_CLAIM)
+            - --api-scope=$(API_SCOPE)
+            - --gateway-url=$(GATEWAY_URL)
+            - --version=$(VERSION)
           envFrom: [{configMapRef: {name: kubetre-api}}]
           ports: [{name: http, containerPort: 8080}]
           livenessProbe: {httpGet: {path: /healthz, port: http}}

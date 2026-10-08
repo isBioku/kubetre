@@ -43,13 +43,15 @@ var values = map[string]string{
 	"VM_ADDRESS_POOL":          "10.240.0.0/16",
 	"ENCRYPTION_AT_HOST":       "true",
 	"ACR_LOGIN_SERVER":         "acrkubetredev.azurecr.io",
-	"KUBETRE_VERSION":          "0.1.0",
+	"KUBETRE_VERSION":          "0.2.0",
 	"OIDC_ISSUER":              "https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0",
 	"OIDC_AUDIENCE":            "77777777-7777-7777-7777-777777777777",
 	"ROLES_CLAIM":              "roles",
 	"IDP_HOST":                 "login.microsoftonline.com",
 	"GATEWAY_HOSTNAME":         "gateway.tre.example.org",
 	"GATEWAY_OIDC_CLIENT_ID":   "88888888-8888-8888-8888-888888888888",
+	"UI_CLIENT_ID":             "99999999-9999-9999-9999-999999999999",
+	"TRE_ID":                   "kubetredev",
 	"GATEWAY_ILB_IP":           "10.224.9.10",
 	"ILB_SUBNET_NAME":          "snet-shared-ilb",
 	"VM_SIZE_SMALL":            "Standard_D2s_v5",
@@ -271,12 +273,15 @@ func TestTemplatesUseTheEnvironmentRegistry(t *testing.T) {
 		if strings.Contains(string(raw), "registry.example.org") {
 			t.Errorf("ServiceTemplate %s still points at the placeholder registry", u.GetName())
 		}
+		if _, hasChart, _ := unstructured.NestedMap(u.Object, "spec", "chart"); !hasChart {
+			continue // a grouping service such as Virtual Desktops installs nothing
+		}
 		if url, _, _ := unstructured.NestedString(u.Object, "spec", "chart", "url"); !strings.HasPrefix(url, "oci://${ACR_LOGIN_SERVER}/charts/") {
 			t.Errorf("ServiceTemplate %s chart url = %s", u.GetName(), url)
 		}
 	}
-	if n != 3 {
-		t.Fatalf("expected 3 ServiceTemplates in the platform stage, found %d", n)
+	if n != 4 {
+		t.Fatalf("expected 4 ServiceTemplates in the platform stage, found %d", n)
 	}
 }
 

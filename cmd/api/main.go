@@ -19,6 +19,7 @@ import (
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
 	"github.com/isBioku/kubetre/internal/api"
+	"github.com/isBioku/kubetre/internal/tre"
 )
 
 func main() {
@@ -29,6 +30,9 @@ func main() {
 		rolesClaim = flag.String("roles-claim", "roles", "Dot-separated claim path holding platform roles.")
 		adminRole  = flag.String("admin-role", api.DefaultAdminRole, "Role that grants TRE administrator rights.")
 		devAuth    = flag.Bool("insecure-dev-auth", false, "Trust X-Dev-User headers. Local development only.")
+		apiScope   = flag.String("api-scope", "", "The API's application ID URI, returned as each workspace's scope_id. Defaults to api://<oidc-audience>.")
+		gatewayURL = flag.String("gateway-url", "", "Base URL of the access gateway broker, used for connection links, for example https://tre.example.org/gateway.")
+		version    = flag.String("version", "dev", "Version reported by /api/.metadata.")
 	)
 	flag.Parse()
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -62,9 +66,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	scope := *apiScope
+	if scope == "" && *audience != "" {
+		scope = "api://" + *audience
+	}
+	// /api/v1 is KubeTRE's own API; the rest of /api is AzureTRE's API, which AzureTRE's UI uses.
+	native := (&api.Server{Client: c, Auth: auth, AdminRole: *adminRole, Log: log}).Handler()
+	compat := (&tre.Server{Client: c, Auth: auth, AdminRole: *adminRole, APIScope: scope, GatewayURL: *gatewayURL,
+		Version: *version, Log: log}).Handler()
+	mux := http.NewServeMux()
+	mux.Handle("/healthz", native)
+	mux.Handle("/api/v1/", native)
+	mux.Handle("/api/", compat)
+
 	srv := &http.Server{
 		Addr:              *listen,
-		Handler:           (&api.Server{Client: c, Auth: auth, AdminRole: *adminRole, Log: log}).Handler(),
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	go func() {

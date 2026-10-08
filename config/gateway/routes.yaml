@@ -65,10 +65,23 @@ metadata:
 spec:
   parentRefs: [{name: kubetre}]
   rules:
-    - matches: [{path: {type: PathPrefix, value: /}}]
+    - matches: [{path: {type: PathPrefix, value: /gateway}}]
       backendRefs: [{name: broker, port: 8080}]
 ---
-# The KubeTRE API on the same hostname, under /api/. It validates its own OIDC tokens.
+# AzureTRE's UI at the site root. Longer prefixes (/api/, /gateway, /guacamole/) win.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ui
+  namespace: kubetre-gateway
+spec:
+  parentRefs: [{name: kubetre}]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /}}]
+      backendRefs: [{name: ui, port: 8080}]
+---
+# The KubeTRE API on the same hostname, under /api/: AzureTRE's API for the UI, and /api/v1.
+# It validates its own OIDC tokens.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

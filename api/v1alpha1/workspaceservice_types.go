@@ -8,6 +8,7 @@ import (
 // WorkspaceServiceSpec is the desired state of a service inside a workspace.
 // +kubebuilder:validation:XValidation:rule="self.templateRef == oldSelf.templateRef",message="templateRef is immutable"
 // +kubebuilder:validation:XValidation:rule="self.owner == oldSelf.owner",message="owner is immutable"
+// +kubebuilder:validation:XValidation:rule="(has(self.parentService) ? self.parentService : '') == (has(oldSelf.parentService) ? oldSelf.parentService : '')",message="parentService is immutable"
 type WorkspaceServiceSpec struct {
 	// TemplateRef is the name of the ServiceTemplate to install.
 	// +kubebuilder:validation:MinLength=1
@@ -26,6 +27,18 @@ type WorkspaceServiceSpec struct {
 	// Owner is the researcher a per-user service belongs to. Empty for shared services.
 	// +optional
 	Owner string `json:"owner"`
+
+	// ParentService is the workspace service a user resource lives under.
+	// +optional
+	ParentService string `json:"parentService,omitempty"`
+
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// Enabled mirrors AzureTRE: a resource must be disabled before it can be deleted.
+	// +optional
+	// +kubebuilder:default=true
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // WorkspaceServiceStatus is the observed state of a WorkspaceService.

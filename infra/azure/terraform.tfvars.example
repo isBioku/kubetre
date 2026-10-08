@@ -21,4 +21,5 @@ oidc_audience = "<api-app-client-id>"
 # and create the TLS Secret kubetre-gateway-tls in namespace kubetre-gateway.
 gateway_hostname       = "gateway.tre.example.org"
 gateway_oidc_client_id = "<gateway-app-client-id>"
+ui_client_id           = "<ui-app-client-id>"
 gateway_source_ranges  = ["*"]

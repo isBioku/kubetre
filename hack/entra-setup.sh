@@ -11,8 +11,10 @@
 #   - app     kubetre-<env>-api                the API: app roles TREAdmin and TREUser,
 #                                              v2 tokens, scope user_impersonation that the
 #                                              Azure CLI may request without a consent prompt
-#   - app     kubetre-<env>-gateway            the access gateway: redirect /callback, secret
-# and assigns you the TREAdmin role.
+#   - app     kubetre-<env>-gateway            the access gateway: redirect /gateway/callback, secret
+#   - app     kubetre-<env>-ui                 AzureTRE's UI: single-page app at https://<host>/,
+#                                              pre-authorised for the API scope
+# and assigns you the TREAdmin role. Researchers need the TREUser role on the API app.
 set -euo pipefail
 
 env_name="${1:?usage: $0 <environment-name> <gateway-hostname>}"
@@ -89,10 +91,10 @@ gw_name="kubetre-${env_name}-gateway"
 gw_app_id="$(existing_app "$gw_name")"
 if [[ -z "$gw_app_id" ]]; then
   gw_app_id="$(az ad app create --display-name "$gw_name" --sign-in-audience AzureADMyOrg \
-    --web-redirect-uris "https://${gateway_host}/callback" --query appId -o tsv)"
+    --web-redirect-uris "https://${gateway_host}/gateway/callback" --query appId -o tsv)"
   echo "created app $gw_name ($gw_app_id)"
 else
-  az ad app update --id "$gw_app_id" --web-redirect-uris "https://${gateway_host}/callback"
+  az ad app update --id "$gw_app_id" --web-redirect-uris "https://${gateway_host}/gateway/callback"
 fi
 az ad app update --id "$gw_app_id" --optional-claims '{"idToken":[{"name":"email"}]}'
 az ad sp show --id "$gw_app_id" >/dev/null 2>&1 || az ad sp create --id "$gw_app_id" >/dev/null
@@ -105,6 +107,25 @@ if [[ ! -s "$secret_file" ]]; then
   echo "wrote the gateway client secret to ./$secret_file (keep it out of Git)"
 fi
 
+# --- UI app ------------------------------------------------------------------------------
+# AzureTRE's UI signs in with MSAL as a single-page app and calls the API with the
+# user_impersonation scope. Pre-authorising it on the API avoids a consent prompt.
+ui_name="kubetre-${env_name}-ui"
+ui_app_id="$(existing_app "$ui_name")"
+if [[ -z "$ui_app_id" ]]; then
+  ui_app_id="$(az ad app create --display-name "$ui_name" --sign-in-audience AzureADMyOrg --query appId -o tsv)"
+  echo "created app $ui_name ($ui_app_id)"
+fi
+ui_object_id="$(az ad app show --id "$ui_app_id" --query id -o tsv)"
+az rest --method PATCH --uri "$graph/applications/$ui_object_id" --headers Content-Type=application/json \
+  --body "{\"spa\":{\"redirectUris\":[\"https://${gateway_host}\",\"https://${gateway_host}/\",\"https://${gateway_host}/logout\"]},
+    \"requiredResourceAccess\":[{\"resourceAppId\":\"$api_app_id\",\"resourceAccess\":[{\"id\":\"$scope_id\",\"type\":\"Scope\"}]}]}"
+az ad sp show --id "$ui_app_id" >/dev/null 2>&1 || az ad sp create --id "$ui_app_id" >/dev/null
+az rest --method PATCH --uri "$graph/applications/$api_object_id" --headers Content-Type=application/json \
+  --body "{\"api\":{\"requestedAccessTokenVersion\":2,\"oauth2PermissionScopes\":[$scope_json],
+    \"preAuthorizedApplications\":[{\"appId\":\"$azure_cli_app_id\",\"delegatedPermissionIds\":[\"$scope_id\"]},
+      {\"appId\":\"$ui_app_id\",\"delegatedPermissionIds\":[\"$scope_id\"]}]}}"
+
 cat <<OUT
 
 Add these to infra/azure/terraform.tfvars:
@@ -114,6 +135,7 @@ oidc_issuer            = "https://login.microsoftonline.com/${tenant_id}/v2.0"
 oidc_audience          = "$api_app_id"
 gateway_hostname       = "$gateway_host"
 gateway_oidc_client_id = "$gw_app_id"
+ui_client_id           = "$ui_app_id"
 
 Get an API token with:
   az account get-access-token --scope api://${api_app_id}/user_impersonation --query accessToken -o tsv

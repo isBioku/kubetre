@@ -3,6 +3,7 @@
 resources:
   - workspacetemplate-base.yaml
   - workspacetemplate-vm.yaml
+  - servicetemplate-virtual-desktops.yaml
   - servicetemplate-linux-desktop.yaml
   - servicetemplate-linux-vm.yaml
   - servicetemplate-windows-vm.yaml

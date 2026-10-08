@@ -57,12 +57,23 @@ spec:
             description: WorkspaceServiceSpec is the desired state of a service inside
               a workspace.
             properties:
+              description:
+                type: string
               displayName:
                 minLength: 1
                 type: string
+              enabled:
+                default: true
+                description: 'Enabled mirrors AzureTRE: a resource must be disabled
+                  before it can be deleted.'
+                type: boolean
               owner:
                 description: Owner is the researcher a per-user service belongs to.
                   Empty for shared services.
+                type: string
+              parentService:
+                description: ParentService is the workspace service a user resource
+                  lives under.
                 type: string
               templateRef:
                 description: TemplateRef is the name of the ServiceTemplate to install.
@@ -82,6 +93,9 @@ spec:
               rule: self.templateRef == oldSelf.templateRef
             - message: owner is immutable
               rule: self.owner == oldSelf.owner
+            - message: parentService is immutable
+              rule: '(has(self.parentService) ? self.parentService : '''') == (has(oldSelf.parentService)
+                ? oldSelf.parentService : '''')'
           status:
             description: WorkspaceServiceStatus is the observed state of a WorkspaceService.
             properties:

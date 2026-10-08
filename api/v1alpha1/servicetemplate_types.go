@@ -23,15 +23,38 @@ type ChartRef struct {
 	Provider string `json:"provider,omitempty"`
 }
 
+// Service kinds, mirroring AzureTRE's resource hierarchy.
+const (
+	// KindWorkspaceService is installed once per workspace by a workspace owner.
+	KindWorkspaceService = "WorkspaceService"
+	// KindUserResource belongs to one researcher and lives under a workspace service.
+	KindUserResource = "UserResource"
+)
+
 // ServiceTemplateSpec defines a service that can be installed into workspaces.
+// +kubebuilder:validation:XValidation:rule="self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate != '')",message="user resource templates need a parentTemplate"
 type ServiceTemplateSpec struct {
+	// Kind is WorkspaceService or UserResource. User resources are personal and are created
+	// under a workspace service of their parentTemplate.
+	// +optional
+	// +kubebuilder:default=WorkspaceService
+	// +kubebuilder:validation:Enum=WorkspaceService;UserResource
+	Kind string `json:"kind,omitempty"`
+
+	// ParentTemplate is the workspace service template a user resource is created under.
+	// +optional
+	ParentTemplate string `json:"parentTemplate,omitempty"`
+
 	// +kubebuilder:validation:MinLength=1
 	DisplayName string `json:"displayName"`
 
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	Chart ChartRef `json:"chart"`
+	// Chart is installed for each instance. Omit it for a workspace service that only groups
+	// user resources, such as the virtual desktops service.
+	// +optional
+	Chart *ChartRef `json:"chart,omitempty"`
 
 	// ValuesSchema is the JSON Schema for values users may set. Keep
 	// additionalProperties false so users cannot override chart internals.
@@ -49,8 +72,8 @@ type ServiceTemplateSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`
 
-	// PerUser services belong to one researcher, like a personal desktop.
-	// Shared services belong to the workspace and only owners create them.
+	// PerUser services belong to one researcher, like a personal desktop. User resources are
+	// always per user; this flag remains for templates without a parent service.
 	// +optional
 	PerUser bool `json:"perUser,omitempty"`
 
@@ -59,14 +82,19 @@ type ServiceTemplateSpec struct {
 	// +optional
 	// +kubebuilder:default=restricted
 	RequiredPodSecurity PodSecurityLevel `json:"requiredPodSecurity,omitempty"`
+
+	// RequiresVirtualMachines marks templates that create Azure VMs. They can only be used in
+	// workspaces whose template enables virtual machines, which gives them a VM subnet.
+	// +optional
+	RequiresVirtualMachines bool `json:"requiresVirtualMachines,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=svctpl
 // +kubebuilder:printcolumn:name="Display Name",type=string,JSONPath=`.spec.displayName`
+// +kubebuilder:printcolumn:name="Kind",type=string,JSONPath=`.spec.kind`
 // +kubebuilder:printcolumn:name="Chart",type=string,JSONPath=`.spec.chart.url`
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.chart.version`
-// +kubebuilder:printcolumn:name="Per User",type=boolean,JSONPath=`.spec.perUser`
 
 // ServiceTemplate is a registered Helm chart that can run inside workspaces.
 type ServiceTemplate struct {
@@ -87,4 +115,9 @@ type ServiceTemplateList struct {
 
 func init() {
 	SchemeBuilder.Register(&ServiceTemplate{}, &ServiceTemplateList{})
+}
+
+// IsUserResource reports whether instances belong to one researcher.
+func (t *ServiceTemplate) IsUserResource() bool {
+	return t.Spec.Kind == KindUserResource || t.Spec.PerUser
 }

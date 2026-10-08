@@ -24,6 +24,8 @@ type LoginState struct {
 	Nonce    string    `json:"nonce"`
 	Verifier string    `json:"verifier"`
 	Expires  time.Time `json:"exp"`
+	// Next is where to return after sign-in: only ever a connect path of this gateway.
+	Next string `json:"next,omitempty"`
 }
 
 // Sealer encrypts and authenticates cookie values with AES-256-GCM.

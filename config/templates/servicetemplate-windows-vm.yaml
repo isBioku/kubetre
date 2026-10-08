@@ -5,7 +5,9 @@ metadata:
 spec:
   displayName: Windows VM (Windows Server 2022)
   description: A personal Azure VM with Windows licensing included, reached through the access gateway.
-  perUser: true
+  kind: UserResource
+  parentTemplate: virtual-desktops
+  requiresVirtualMachines: true
   # The chart creates no pods, so the strictest level is fine.
   requiredPodSecurity: restricted
   chart:

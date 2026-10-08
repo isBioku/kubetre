@@ -184,3 +184,94 @@ func TestTamperedSessionCookieIsRejected(t *testing.T) {
 		t.Fatalf("tampered cookie accepted: %d", resp.StatusCode)
 	}
 }
+
+// newHarnessAt serves the gateway under a base path, as it runs behind AzureTRE's UI.
+func newHarnessAt(t *testing.T, base string) *harness {
+	t.Helper()
+	key, _ := ParseGuacKey(testKeyHex)
+	sealer, _ := NewSealer([]byte("0123456789abcdef0123456789abcdef"))
+	h := &harness{t: t, key: key, login: &fakeLogin{}}
+	gw := &Server{
+		Resolver: fixture(t), Login: h.login, Sealer: sealer, GuacKey: key, GuacamolePath: "/guacamole/",
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	var handler http.Handler
+	h.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
+	t.Cleanup(h.srv.Close)
+	gw.ExternalURL, _ = url.Parse(h.srv.URL + base)
+	handler = gw.Handler()
+	jar, _ := cookiejar.New(nil)
+	h.client = h.srv.Client()
+	h.client.Jar = jar
+	h.client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return h
+}
+
+func (h *harness) getFrom(path, fetchSite string) *http.Response {
+	req, _ := http.NewRequest("GET", h.srv.URL+path, nil)
+	if fetchSite != "" {
+		req.Header.Set("Sec-Fetch-Site", fetchSite)
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return resp
+}
+
+// The UI's Connect button opens /gateway/connect/<workspace>/<user resource> in a new tab.
+// A user who is not yet signed in to the gateway goes through sign-in and lands back on
+// the connection.
+func TestConnectLinkFromTheUISignsInAndReturns(t *testing.T) {
+	h := newHarnessAt(t, "/gateway")
+	resp := h.getFrom("/gateway/connect/study/rita-vm", "same-origin")
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/gateway/login?next=%2Fgateway%2Fconnect%2Fstudy%2Frita-vm" {
+		t.Fatalf("anonymous connect: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	resp = h.get(resp.Header.Get("Location"))
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	resp = h.get("/gateway/callback?state=" + url.QueryEscape(loc.Query().Get("state")) + "&code=rita@example.com")
+	if resp.Header.Get("Location") != "/gateway/connect/study/rita-vm" {
+		t.Fatalf("callback should return to the connection, got %s", resp.Header.Get("Location"))
+	}
+	for _, c := range resp.Cookies() {
+		if c.Path != "/gateway/" {
+			t.Fatalf("cookie %s has path %q", c.Name, c.Path)
+		}
+	}
+	resp = h.getFrom("/gateway/connect/study/rita-vm", "same-origin")
+	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(resp.Header.Get("Location"), "/guacamole/#/?data=") {
+		t.Fatalf("connect by user resource name: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if resp := h.getFrom("/gateway/connect/study/rita-vm", "none"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("typed URL: %d", resp.StatusCode)
+	}
+	for name, tc := range map[string]struct {
+		path, site string
+		want       int
+	}{
+		"cross-site link":     {"/gateway/connect/study/rita-vm", "cross-site", http.StatusForbidden},
+		"same-site link":      {"/gateway/connect/study/rita-vm", "same-site", http.StatusForbidden},
+		"no fetch metadata":   {"/gateway/connect/study/rita-vm", "", http.StatusForbidden},
+		"someone else's VM":   {"/gateway/connect/study/ravi-vm", "same-origin", http.StatusNotFound},
+		"outside the gateway": {"/connect/study/rita-vm", "same-origin", http.StatusNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if resp := h.getFrom(tc.path, tc.site); resp.StatusCode != tc.want {
+				t.Fatalf("got %d, want %d", resp.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoginIgnoresReturnPathsOutsideConnect(t *testing.T) {
+	h := newHarnessAt(t, "/gateway")
+	for _, next := range []string{"https://evil.example.com/", "//evil.example.com", "/gateway/../admin", "/gateway/connect/a/b/../../x", "/other/connect/a/b"} {
+		resp := h.get("/gateway/login?next=" + url.QueryEscape(next))
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		resp = h.get("/gateway/callback?state=" + url.QueryEscape(loc.Query().Get("state")) + "&code=rita@example.com")
+		if got := resp.Header.Get("Location"); got != "/gateway/" {
+			t.Fatalf("next=%q redirected to %q", next, got)
+		}
+	}
+}

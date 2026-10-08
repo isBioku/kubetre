@@ -78,6 +78,11 @@ spec:
                     type: array
                     x-kubernetes-list-type: set
                 type: object
+              enabled:
+                default: true
+                description: 'Enabled mirrors AzureTRE: a workspace must be disabled
+                  before it can be deleted.'
+                type: boolean
               owners:
                 description: Owners manage the workspace. Entries are OIDC subjects
                   or email addresses.

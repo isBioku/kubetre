@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type Server struct {
 	Login         Login
 	Sealer        *Sealer
 	GuacKey       GuacKey
-	ExternalURL   *url.URL // e.g. https://gateway.example.org
+	ExternalURL   *url.URL // e.g. https://tre.example.org/gateway; its path is the base path
 	GuacamolePath string   // e.g. /guacamole/
 	Log           *slog.Logger
 	Now           func() time.Time
@@ -39,7 +40,7 @@ func (s *Server) now() time.Time {
 	return time.Now()
 }
 
-// Handler returns the routes.
+// Handler returns the routes, served under the external URL's path.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -48,8 +49,28 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /callback", s.callback)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("POST /connect/{workspace}/{name}", s.connect)
-	return securityHeaders(mux)
+	mux.HandleFunc("GET /connect/{workspace}/{name}", s.connectLink)
+	base := s.basePath()
+	if base == "" {
+		return securityHeaders(mux)
+	}
+	outer := http.NewServeMux()
+	outer.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	outer.Handle(base+"/", http.StripPrefix(base, mux))
+	outer.Handle("GET "+base, http.RedirectHandler(base+"/", http.StatusFound))
+	return securityHeaders(outer)
 }
+
+// basePath is the path the gateway is served under, for example /gateway, or "".
+func (s *Server) basePath() string {
+	if s.ExternalURL == nil {
+		return ""
+	}
+	return strings.TrimSuffix(s.ExternalURL.Path, "/")
+}
+
+// path turns a route into the browser-visible path.
+func (s *Server) path(p string) string { return s.basePath() + p }
 
 func securityHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,13 +85,13 @@ func securityHeaders(h http.Handler) http.Handler {
 
 func (s *Server) setCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: value, Path: "/", HttpOnly: true, Secure: true,
+		Name: name, Value: value, Path: s.path("/"), HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteLaxMode, MaxAge: int(ttl.Seconds()),
 	})
 }
 
 func (s *Server) clearCookie(w http.ResponseWriter, name string) {
-	http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: s.path("/"), HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 }
 
 func (s *Server) session(r *http.Request) (access.Identity, bool) {
@@ -87,6 +108,9 @@ func (s *Server) session(r *http.Request) (access.Identity, bool) {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	st := LoginState{State: randomString(24), Nonce: randomString(24), Verifier: randomString(48), Expires: s.now().Add(loginTTL)}
+	if next := r.URL.Query().Get("next"); s.isConnectPath(next) {
+		st.Next = next
+	}
 	v, err := s.Sealer.Seal(loginCookie, st)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -125,7 +149,11 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setCookie(w, sessionCookie, v, sessionTTL)
 	s.Log.Info("signed in", "user", id.Principal())
-	http.Redirect(w, r, "/", http.StatusFound)
+	if s.isConnectPath(st.Next) {
+		http.Redirect(w, r, st.Next, http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, s.path("/"), http.StatusFound)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +162,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.clearCookie(w, sessionCookie)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, s.path("/"), http.StatusSeeOther)
 }
 
 // sameOrigin rejects cross-site form posts. Browsers send Origin on POST.
@@ -149,7 +177,7 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.session(r)
 	if !ok {
-		http.Redirect(w, r, "/login", http.StatusFound)
+		http.Redirect(w, r, s.path("/login"), http.StatusFound)
 		return
 	}
 	conns, err := s.Resolver.Connections(r.Context(), id)
@@ -159,7 +187,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = homePage.Execute(w, map[string]any{"User": id, "Connections": conns})
+	_ = homePage.Execute(w, map[string]any{"User": id, "Connections": conns, "Base": s.basePath()})
 }
 
 func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
@@ -169,9 +197,40 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	}
 	id, ok := s.session(r)
 	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		http.Redirect(w, r, s.path("/login"), http.StatusSeeOther)
 		return
 	}
+	s.open(w, r, id)
+}
+
+// connectLink serves the connection links AzureTRE's UI opens in a new tab ("Connect").
+// Fetch Metadata allows only navigations from this site or typed by the user, so another
+// site cannot open sessions in a signed-in user's browser.
+func (s *Server) connectLink(w http.ResponseWriter, r *http.Request) {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+	default:
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	id, ok := s.session(r)
+	if !ok {
+		http.Redirect(w, r, s.path("/login")+"?next="+url.QueryEscape(s.path(r.URL.Path)), http.StatusFound)
+		return
+	}
+	s.open(w, r, id)
+}
+
+var connectPath = regexp.MustCompile(`^/connect/[a-z0-9]([a-z0-9-]*[a-z0-9])?/[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
+
+func (s *Server) isConnectPath(p string) bool {
+	rest, ok := strings.CutPrefix(p, s.basePath())
+	return ok && p != "" && connectPath.MatchString(rest)
+}
+
+// open hands the user's connection to Guacamole. {name} is the connection Secret or, from
+// AzureTRE's UI, the service (user resource) that owns it.
+func (s *Server) open(w http.ResponseWriter, r *http.Request, id access.Identity) {
 	// Authorization is re-evaluated on every connect, from current workspace membership
 	// and service ownership.
 	conns, err := s.Resolver.Connections(r.Context(), id)
@@ -179,31 +238,39 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not list your connections", http.StatusInternalServerError)
 		return
 	}
-	want := r.PathValue("workspace") + "/" + r.PathValue("name")
-	for _, c := range conns {
-		if c.ID() != want {
+	ws, name := r.PathValue("workspace"), r.PathValue("name")
+	var match *Connection
+	for i := range conns {
+		c := &conns[i]
+		if c.Workspace != ws || (c.Name != name && c.Service != name) {
 			continue
 		}
-		if !c.Ready {
-			http.Error(w, "not ready: "+c.Reason, http.StatusConflict)
-			return
+		if match == nil || (c.Ready && !match.Ready) {
+			match = c
 		}
-		payload := NewGuacPayload(id.Principal(), map[string]GuacConnection{
-			c.ID(): {Protocol: c.Protocol, Parameters: HardenedParameters(c)},
-		}, s.now(), HandoffTTL)
-		data, err := s.GuacKey.Seal(payload)
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		s.Log.Info("session opened", "user", id.Principal(), "workspace", c.Workspace, "service", c.Service,
-			"connection", c.Name, "protocol", c.Protocol, "target", c.Hostname)
-		// The payload travels in the URL fragment, which browsers never send to a server,
-		// so it stays out of proxy and access logs.
-		http.Redirect(w, r, s.GuacamolePath+"#/?data="+url.QueryEscape(data), http.StatusSeeOther)
+	}
+	if match == nil {
+		http.Error(w, "connection not found", http.StatusNotFound)
 		return
 	}
-	http.Error(w, "connection not found", http.StatusNotFound)
+	c := *match
+	if !c.Ready {
+		http.Error(w, "not ready: "+c.Reason, http.StatusConflict)
+		return
+	}
+	payload := NewGuacPayload(id.Principal(), map[string]GuacConnection{
+		c.ID(): {Protocol: c.Protocol, Parameters: HardenedParameters(c)},
+	}, s.now(), HandoffTTL)
+	data, err := s.GuacKey.Seal(payload)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	s.Log.Info("session opened", "user", id.Principal(), "workspace", c.Workspace, "service", c.Service,
+		"connection", c.Name, "protocol", c.Protocol, "target", c.Hostname)
+	// The payload travels in the URL fragment, which browsers never send to a server,
+	// so it stays out of proxy and access logs.
+	http.Redirect(w, r, s.GuacamolePath+"#/?data="+url.QueryEscape(data), http.StatusSeeOther)
 }
 
 var homePage = template.Must(template.New("home").Parse(`<!doctype html>
@@ -218,11 +285,11 @@ button[disabled]{background:#c8ced9;border-color:#c8ced9;cursor:not-allowed}.top
 .link{background:none;border:none;color:#2f63d8;padding:0}
 </style></head><body><main>
 <div class="top"><h1>Your workspace sessions</h1>
-<form method="post" action="/logout"><button class="link" type="submit">Sign out {{.User.Principal}}</button></form></div>
+<form method="post" action="{{.Base}}/logout"><button class="link" type="submit">Sign out {{.User.Principal}}</button></form></div>
 <p class="meta">Clipboard, file transfer and drive mapping are disabled. Use the airlock to move data.</p>
 {{range .Connections}}
 <div class="card"><div><strong>{{.DisplayName}}</strong>
 <div class="meta">{{.Workspace}} · {{.Protocol}}{{if not .Ready}} · {{.Reason}}{{end}}</div></div>
-<form method="post" action="/connect/{{.Workspace}}/{{.Name}}"><button type="submit"{{if not .Ready}} disabled{{end}}>Connect</button></form></div>
+<form method="post" action="{{$.Base}}/connect/{{.Workspace}}/{{.Name}}"><button type="submit"{{if not .Ready}} disabled{{end}}>Connect</button></form></div>
 {{else}}<p>You have no desktops or virtual machines yet. Create one from a workspace in the KubeTRE portal.</p>{{end}}
 </main></body></html>`))

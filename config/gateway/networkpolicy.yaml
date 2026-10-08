@@ -24,7 +24,7 @@ kind: NetworkPolicy
 metadata: {name: allow-from-envoy, namespace: kubetre-gateway}
 spec:
   podSelector:
-    matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [broker, guacamole]}]
+    matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [broker, guacamole, ui]}]
   policyTypes: [Ingress]
   ingress:
     - from:

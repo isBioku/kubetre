@@ -189,7 +189,7 @@ variable "gitops_path" {
 variable "kubetre_version" {
   description = "Image tag of KubeTRE's images in ACR. Keep it equal to the VERSION file, which `make acr-build` uses."
   type        = string
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
 
 variable "oidc_issuer" {
@@ -226,7 +226,13 @@ variable "gateway_hostname" {
 }
 
 variable "gateway_oidc_client_id" {
-  description = "Client ID of the access gateway's app registration (redirect URI https://<gateway_hostname>/callback)."
+  description = "Client ID of the access gateway's app registration (redirect URI https://<gateway_hostname>/gateway/callback)."
+  type        = string
+  default     = ""
+}
+
+variable "ui_client_id" {
+  description = "Client ID of the UI's single-page app registration (redirect URI https://<gateway_hostname>), pre-authorised for the API's user_impersonation scope."
   type        = string
   default     = ""
 }

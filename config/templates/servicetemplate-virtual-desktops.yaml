@@ -1,0 +1,12 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: virtual-desktops
+spec:
+  # The workspace service under which researchers create their own VMs and desktops, like
+  # AzureTRE's Guacamole service. It installs nothing itself: connections go through the
+  # platform's shared access gateway.
+  kind: WorkspaceService
+  displayName: Virtual Desktops
+  description: Personal Windows and Linux virtual machines and desktops, opened in the browser through Apache Guacamole.
+  requiredPodSecurity: restricted

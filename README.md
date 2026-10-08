@@ -1,11 +1,28 @@
 # KubeTRE
 
-A cloud-native Trusted Research Environment for Kubernetes, designed from the ideas in
-[AzureTRE](https://github.com/microsoft/AzureTRE) but not ported from its code.
+An experimental cloud-native port of Microsoft's
+[Azure Trusted Research Environment (AzureTRE)](https://github.com/microsoft/AzureTRE) to
+Kubernetes. It keeps AzureTRE's user interface and API, and replaces the back end with
+Kubernetes operators, Helm, Flux and Crossplane.
 
-A TRE administrator creates **workspaces** from **templates** through an API. Each workspace is
-an isolated namespace with a quota, a default-deny network, and an internet allowlist. Researchers
-see only the workspaces they belong to.
+A TRE administrator creates **workspaces** from **templates**. Each workspace is an isolated
+namespace with a quota, a default-deny network, and an internet allowlist. Researchers see only
+the workspaces they belong to.
+
+## AzureTRE's user interface
+
+Everything is created from the user interface of Microsoft's
+[Azure Trusted Research Environment](https://github.com/microsoft/AzureTRE), which KubeTRE runs
+unchanged in look and behaviour. Workspaces, workspace services such as Virtual Desktops, and
+researchers' own VMs and desktops are created there, and **Connect** opens a session through
+Apache Guacamole. AzureTRE and its UI are Microsoft's work, used here under their MIT licence.
+The UI is vendored in [ui/](ui/) with Microsoft's copyright notice; [ui/README.md](ui/README.md)
+lists the few lines changed so it can run against KubeTRE.
+
+KubeTRE serves AzureTRE's REST API (`/api/workspaces`, `/workspace-services`, `/user-resources`,
+templates and operations) from Kubernetes resources instead of Cosmos DB, Service Bus and Porter.
+This is an experimental, community port to test whether AzureTRE can be cloud-native. It is not
+an official Microsoft release.
 
 ## Status
 
@@ -18,6 +35,8 @@ see only the workspaces they belong to.
 
 | 4. Access gateway | OIDC broker plus stock Guacamole: owner-only sessions, targets confined to the workspace, clipboard and file transfer off; Envoy Gateway behind a single firewall DNAT rule |
 
+| 5. AzureTRE UI | Microsoft's AzureTRE UI served at `/`, backed by an AzureTRE-compatible API; workspaces, Virtual Desktops and personal VMs created from the UI |
+
 Hosting is cloud-only: AKS first, EKS and GKE later ([ADR 7](docs/adr/0007-cloud-targets.md)).
 Design decisions are in [docs/adr](docs/adr).
 
@@ -26,7 +45,9 @@ Design decisions are in [docs/adr](docs/adr).
 ```text
 api/v1alpha1/        CRD Go types (source of truth for the CRDs)
 internal/controller/ Workspace reconciler
-internal/api/        HTTP API and authentication
+internal/api/        KubeTRE's own HTTP API (/api/v1) and authentication
+internal/tre/        AzureTRE-compatible API (/api) for AzureTRE's UI
+ui/                  AzureTRE's UI (Microsoft, MIT), vendored with minimal changes
 internal/gateway/    access gateway broker: OIDC sign-in, session authorization, Guacamole hand-off
 internal/access/     identity and workspace membership shared by the API and the gateway
 cmd/                 controller and api entrypoints
@@ -78,10 +99,10 @@ teardown and troubleshooting. The VM security model and its open gaps are in
 
 ## Status and license
 
-KubeTRE is early-stage and has not yet been deployed to Azure. Read the open gaps in
+KubeTRE is early-stage. Read the open gaps in
 [ADR 8](docs/adr/0008-vm-security-model.md) and [ADR 9](docs/adr/0009-access-gateway.md)
 before using it for sensitive data.
 
-Released under the [MIT License](LICENSE). KubeTRE is inspired by
-[AzureTRE](https://github.com/microsoft/AzureTRE) (also MIT) and is not affiliated with or
-endorsed by Microsoft.
+Released under the [MIT License](LICENSE). AzureTRE and its UI are copyright Microsoft
+Corporation under the MIT License; see [ui/LICENSE](ui/LICENSE). KubeTRE is an independent,
+experimental port and is not an official Microsoft product.

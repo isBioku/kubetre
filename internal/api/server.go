@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,11 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
 	"github.com/isBioku/kubetre/internal/access"
 	"github.com/isBioku/kubetre/internal/controller"
+	"github.com/isBioku/kubetre/internal/schema"
 )
 
 // DefaultAdminRole matches the TRE administrator role name used by AzureTRE.
@@ -336,34 +334,8 @@ func validateParameters(tmpl *treV1.WorkspaceTemplate, params json.RawMessage) e
 }
 
 // validateAgainstSchema validates a JSON object against an optional JSON Schema.
-// Remote and file references are disabled so a schema cannot make the API fetch anything.
-func validateAgainstSchema(id string, schema []byte, doc json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(doc, &obj); err != nil || obj == nil {
-		return errNotObject
-	}
-	if len(bytes.TrimSpace(schema)) == 0 {
-		return nil
-	}
-	schemaDoc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schema))
-	if err != nil {
-		return fmt.Errorf("template schema is not valid JSON: %w", err)
-	}
-	c := jsonschema.NewCompiler()
-	c.UseLoader(jsonschema.SchemeURLLoader{})
-	url := "kubetre://templates/" + id + ".json"
-	if err := c.AddResource(url, schemaDoc); err != nil {
-		return fmt.Errorf("template schema: %w", err)
-	}
-	sch, err := c.Compile(url)
-	if err != nil {
-		return fmt.Errorf("template schema does not compile: %w", err)
-	}
-	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(doc))
-	if err != nil {
-		return errors.New("must be valid JSON")
-	}
-	return sch.Validate(inst)
+func validateAgainstSchema(id string, schemaDoc []byte, doc json.RawMessage) error {
+	return schema.Validate(id, schemaDoc, doc)
 }
 
 // normalizeObject turns an empty or null body field into an empty JSON object.

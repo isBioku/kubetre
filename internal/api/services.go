@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
 	"github.com/isBioku/kubetre/internal/controller"
+	"github.com/isBioku/kubetre/internal/schema"
 )
 
 // maxServiceName keeps Helm release names (53 characters) and derived names well within limits.
@@ -66,7 +66,7 @@ func (s *Server) listServiceTemplates(w http.ResponseWriter, r *http.Request, _ 
 	for _, t := range list.Items {
 		v := serviceTemplateView{
 			Name: t.Name, DisplayName: t.Spec.DisplayName, Description: t.Spec.Description,
-			Version: t.Spec.Chart.Version, PerUser: t.Spec.PerUser,
+			Version: chartVersion(&t), PerUser: t.IsUserResource(),
 			RequiredPodSecurity: string(t.Spec.RequiredPodSecurity.OrDefault()),
 		}
 		if t.Spec.ValuesSchema != nil {
@@ -186,7 +186,7 @@ func (s *Server) createService(w http.ResponseWriter, r *http.Request, id Identi
 	}
 
 	owner := ""
-	if tmpl.Spec.PerUser {
+	if tmpl.IsUserResource() {
 		if !roles[RoleOwner] && !roles[RoleResearcher] {
 			writeError(w, http.StatusForbidden, "only workspace owners and researchers can create personal services")
 			return
@@ -277,4 +277,11 @@ func rawOrNil(j *apiextensionsv1.JSON) []byte {
 	return j.Raw
 }
 
-var errNotObject = errors.New("must be a JSON object")
+var errNotObject = schema.ErrNotObject
+
+func chartVersion(t *treV1.ServiceTemplate) string {
+	if t.Spec.Chart == nil {
+		return ""
+	}
+	return t.Spec.Chart.Version
+}

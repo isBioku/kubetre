@@ -32,7 +32,7 @@ func serviceTemplate(name string, required treV1.PodSecurityLevel) *treV1.Servic
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: treV1.ServiceTemplateSpec{
 			DisplayName: name, PerUser: true, RequiredPodSecurity: required,
-			Chart:  treV1.ChartRef{URL: "oci://example.azurecr.io/charts/" + name, Version: "0.1.0", Provider: "azure"},
+			Chart:  &treV1.ChartRef{URL: "oci://example.azurecr.io/charts/" + name, Version: "0.1.0", Provider: "azure"},
 			Values: &apiextensionsv1.JSON{Raw: []byte(`{"image":{"tag":"1.0"},"resources":{"cpu":"1","memory":"2Gi"}}`)},
 		},
 	}
@@ -136,4 +136,36 @@ func TestZZZServiceInstalledThroughFlux(t *testing.T) {
 	}}, "status", "conditions")
 	must(t, k8s.Status().Update(ctx, hr))
 	eventually(t, "service ready", func() bool { return getSvc(t, ns, "rita-desktop").Status.Phase == treV1.PhaseReady })
+}
+
+// Virtual Desktops installs nothing itself: it is ready as soon as the workspace is.
+func TestChartlessServiceIsReady(t *testing.T) {
+	ctx := context.Background()
+	ns := readyWorkspace(t, "svc-group", treV1.PodSecurityRestricted)
+	must(t, k8s.Create(ctx, &treV1.ServiceTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "group-desktops"},
+		Spec:       treV1.ServiceTemplateSpec{DisplayName: "Virtual Desktops", RequiredPodSecurity: treV1.PodSecurityRestricted},
+	}))
+	must(t, k8s.Create(ctx, &treV1.WorkspaceService{
+		ObjectMeta: metav1.ObjectMeta{Name: "desktops", Namespace: ns},
+		Spec:       treV1.WorkspaceServiceSpec{TemplateRef: "group-desktops", DisplayName: "Virtual Desktops"},
+	}))
+	eventually(t, "chartless service ready", func() bool {
+		s := getSvc(t, ns, "desktops")
+		return s.Status.Phase == treV1.PhaseReady && svcReason(t, ns, "desktops") == "NoChart"
+	})
+}
+
+// A VM template in a workspace without a VM subnet is refused before anything is installed.
+func TestVMServiceRefusedWithoutVMNetworking(t *testing.T) {
+	ctx := context.Background()
+	ns := readyWorkspace(t, "svc-novm", treV1.PodSecurityRestricted)
+	tmpl := serviceTemplate("vm-needs-net", treV1.PodSecurityRestricted)
+	tmpl.Spec.RequiresVirtualMachines = true
+	must(t, k8s.Create(ctx, tmpl))
+	must(t, k8s.Create(ctx, &treV1.WorkspaceService{
+		ObjectMeta: metav1.ObjectMeta{Name: "rita-vm", Namespace: ns},
+		Spec:       treV1.WorkspaceServiceSpec{TemplateRef: "vm-needs-net", DisplayName: "VM", Owner: "rita@example.com"},
+	}))
+	eventually(t, "refused without VM networking", func() bool { return svcReason(t, ns, "rita-vm") == "VirtualMachinesNotEnabled" })
 }

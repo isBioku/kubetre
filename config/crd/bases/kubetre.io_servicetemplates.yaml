@@ -20,15 +20,15 @@ spec:
     - jsonPath: .spec.displayName
       name: Display Name
       type: string
+    - jsonPath: .spec.kind
+      name: Kind
+      type: string
     - jsonPath: .spec.chart.url
       name: Chart
       type: string
     - jsonPath: .spec.chart.version
       name: Version
       type: string
-    - jsonPath: .spec.perUser
-      name: Per User
-      type: boolean
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -57,7 +57,9 @@ spec:
               into workspaces.
             properties:
               chart:
-                description: ChartRef points at a Helm chart published to an OCI registry.
+                description: |-
+                  Chart is installed for each instance. Omit it for a workspace service that only groups
+                  user resources, such as the virtual desktops service.
                 properties:
                   provider:
                     default: generic
@@ -87,10 +89,23 @@ spec:
               displayName:
                 minLength: 1
                 type: string
+              kind:
+                default: WorkspaceService
+                description: |-
+                  Kind is WorkspaceService or UserResource. User resources are personal and are created
+                  under a workspace service of their parentTemplate.
+                enum:
+                - WorkspaceService
+                - UserResource
+                type: string
+              parentTemplate:
+                description: ParentTemplate is the workspace service template a user
+                  resource is created under.
+                type: string
               perUser:
                 description: |-
-                  PerUser services belong to one researcher, like a personal desktop.
-                  Shared services belong to the workspace and only owners create them.
+                  PerUser services belong to one researcher, like a personal desktop. User resources are
+                  always per user; this flag remains for templates without a parent service.
                 type: boolean
               requiredPodSecurity:
                 default: restricted
@@ -102,6 +117,11 @@ spec:
                 - baseline
                 - privileged
                 type: string
+              requiresVirtualMachines:
+                description: |-
+                  RequiresVirtualMachines marks templates that create Azure VMs. They can only be used in
+                  workspaces whose template enables virtual machines, which gives them a VM subnet.
+                type: boolean
               values:
                 description: |-
                   Values are fixed chart values set by the administrator. User values are
@@ -115,9 +135,12 @@ spec:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             required:
-            - chart
             - displayName
             type: object
+            x-kubernetes-validations:
+            - message: user resource templates need a parentTemplate
+              rule: self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate
+                != '')
         type: object
     served: true
     storage: true

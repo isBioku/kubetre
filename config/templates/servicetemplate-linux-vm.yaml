@@ -5,7 +5,9 @@ metadata:
 spec:
   displayName: Linux VM (Ubuntu 24.04)
   description: A personal Azure VM with full root access, reached through the access gateway.
-  perUser: true
+  kind: UserResource
+  parentTemplate: virtual-desktops
+  requiresVirtualMachines: true
   requiredPodSecurity: restricted
   chart:
     url: oci://registry.example.org/charts/research-vm

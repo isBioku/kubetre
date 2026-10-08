@@ -5,7 +5,8 @@ metadata:
 spec:
   displayName: Linux desktop
   description: A personal XFCE desktop in the browser.
-  perUser: true
+  kind: UserResource
+  parentTemplate: virtual-desktops
   requiredPodSecurity: restricted
   chart:
     url: oci://registry.example.org/charts/linux-desktop

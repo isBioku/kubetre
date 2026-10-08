@@ -21,6 +21,8 @@ type Identity struct {
 	Email   string
 	Name    string
 	Roles   []string
+	// ObjectID is the Entra ID object ID (oid), which AzureTRE's UI uses as the user's ID.
+	ObjectID string
 }
 
 // HasRole reports whether the user holds a platform role.

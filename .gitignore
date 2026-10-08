@@ -11,3 +11,8 @@ backend.hcl
 *-client-secret.txt
 # Shared, non-secret Terraform profiles are committed.
 !infra/azure/profiles/*.tfvars
+
+# UI build output and dependencies
+ui/node_modules/
+ui/dist/
+ui/src/config.json

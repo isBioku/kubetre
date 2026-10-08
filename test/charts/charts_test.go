@@ -114,12 +114,15 @@ func TestTemplatesRenderWithAdminValuesOnly(t *testing.T) {
 		var tmpl struct {
 			Metadata struct{ Name string }
 			Spec     struct {
-				Chart  struct{ URL string }
+				Chart  *struct{ URL string }
 				Values map[string]any
 			}
 		}
 		if err := yaml.Unmarshal(raw, &tmpl); err != nil {
 			t.Fatal(err)
+		}
+		if tmpl.Spec.Chart == nil {
+			continue // grouping services install nothing
 		}
 		chart := tmpl.Spec.Chart.URL[strings.LastIndex(tmpl.Spec.Chart.URL, "/")+1:]
 		valuesFile := filepath.Join(t.TempDir(), "values.yaml")

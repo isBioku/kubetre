@@ -19,11 +19,11 @@ func serviceFixture(t *testing.T) *httptest.Server {
 	pending := existing("pending", []string{"olive@example.com"}, []string{"rita@example.com"})
 	desktop := &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "linux-desktop"}, Spec: treV1.ServiceTemplateSpec{
 		DisplayName: "Linux desktop", PerUser: true,
-		Chart:        treV1.ChartRef{URL: "oci://x.azurecr.io/charts/linux-desktop", Version: "0.1.0"},
+		Chart:        &treV1.ChartRef{URL: "oci://x.azurecr.io/charts/linux-desktop", Version: "0.1.0"},
 		ValuesSchema: &apiextensionsv1.JSON{Raw: []byte(desktopSchema)},
 	}}
 	gitea := &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "gitea"}, Spec: treV1.ServiceTemplateSpec{
-		DisplayName: "Gitea", Chart: treV1.ChartRef{URL: "oci://x.azurecr.io/charts/gitea", Version: "1.0.0"},
+		DisplayName: "Gitea", Chart: &treV1.ChartRef{URL: "oci://x.azurecr.io/charts/gitea", Version: "1.0.0"},
 	}}
 	return newTestServer(t, ws, pending, desktop, gitea)
 }

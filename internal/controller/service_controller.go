@@ -93,6 +93,25 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			required, enforced.OrDefault()), 0)
 	}
 
+	if tmpl.Spec.RequiresVirtualMachines {
+		ws := &treV1.Workspace{}
+		if err := r.Get(ctx, types.NamespacedName{Name: workspace}, ws); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+		if ws.Status.VMNetwork == nil {
+			return fail("VirtualMachinesNotEnabled",
+				"this service creates virtual machines; use a workspace template that enables them", time.Minute)
+		}
+	}
+
+	// A template without a chart only groups user resources (for example virtual desktops):
+	// there is nothing to install, so the service is ready as soon as its namespace is.
+	if tmpl.Spec.Chart == nil {
+		svc.Status.Phase = treV1.PhaseReady
+		setReady(&svc.Status.Conditions, svc.Generation, true, "NoChart", "nothing to install")
+		return ctrl.Result{}, r.writeStatus(ctx, svc, original)
+	}
+
 	if _, err := r.RESTMapper().RESTMapping(helmReleaseGVK.GroupKind(), helmReleaseGVK.Version); err != nil {
 		if meta.IsNoMatchError(err) {
 			return fail("FluxNotInstalled", "Flux source and helm controllers are required to install services", time.Minute)

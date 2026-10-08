@@ -1,0 +1,99 @@
+import { Stack, Shimmer, TooltipHost, Icon } from "@fluentui/react";
+import React, { useContext, useEffect, useState } from "react";
+import { CostsContext } from "../../contexts/CostsContext";
+import { LoadingState } from "../../models/loadingState";
+import { WorkspaceContext } from "../../contexts/WorkspaceContext";
+import { CostResource } from "../../models/costs";
+import { useAuthApiCall } from "../../hooks/useAuthApiCall";
+import { ResourceType } from "../../models/resourceType";
+
+interface CostsTagProps {
+  resourceId: string;
+  resourceType?: ResourceType;
+}
+
+export const CostsTag: React.FunctionComponent<CostsTagProps> = (props: CostsTagProps) => {
+  const costsCtx = useContext(CostsContext);
+  const workspaceCtx = useContext(WorkspaceContext);
+  const [loadingState, setLoadingState] = useState(LoadingState.Loading);
+  const apiCall = useAuthApiCall();
+  const [formattedCost, setFormattedCost] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    async function fetchCostData() {
+      let costs: CostResource[] = [];
+      if (workspaceCtx.costs?.length > 0) {
+        costs = workspaceCtx.costs;
+      } else if (costsCtx.costs?.length > 0) {
+        costs = costsCtx.costs;
+      }
+
+      const resourceCosts = costs.find((cost) => {
+        return cost.id === props.resourceId;
+      });
+
+      if (resourceCosts && resourceCosts?.costs?.length > 0) {
+        const formattedCost = new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: resourceCosts?.costs[0].currency,
+          currencyDisplay: "narrowSymbol",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(resourceCosts.costs[0].cost);
+        setFormattedCost(formattedCost);
+      } else {
+        setFormattedCost(undefined);
+      }
+      setLoadingState(LoadingState.Ok);
+    }
+    fetchCostData();
+  }, [apiCall, props.resourceId, workspaceCtx.costs, costsCtx.costs, workspaceCtx.workspace.id]);
+
+  // Generate tooltip content based on resource type and cost availability
+  const getTooltipContent = () => {
+    // The TRE-wide unsupported/failed state only applies outside a workspace; inside one, costs come from the workspace.
+    if (
+      !workspaceCtx.workspace?.id &&
+      (costsCtx.loadingState === LoadingState.NotSupported || costsCtx.loadingState === LoadingState.Error)
+    ) {
+      return "Costs unavailable";
+    }
+    if (!formattedCost) {
+      return "Cost data not yet available";
+    }
+
+    let baseMessage = "Month-to-date costs";
+
+    if (props.resourceType === ResourceType.Workspace) {
+      baseMessage += " (includes all workspace services and user resources)";
+    }
+
+    return baseMessage;
+  };
+
+  // Inside a workspace, costs come from the workspace context; the TRE-wide costs may never be loaded there.
+  const inWorkspace = !!workspaceCtx.workspace?.id;
+  const showShimmer =
+    loadingState === LoadingState.Loading ||
+    (!inWorkspace && costsCtx.loadingState === LoadingState.Loading && !formattedCost);
+
+  const costBadge = (
+    <Stack.Item style={{ maxHeight: 18 }} className="tre-badge">
+      {showShimmer ? (
+        <Shimmer data-testid="shimmer" />
+      ) : (
+        <>
+          {formattedCost ? (
+            <TooltipHost content={getTooltipContent()}>{formattedCost}</TooltipHost>
+          ) : (
+            <TooltipHost content={getTooltipContent()}>
+              <Icon iconName="Clock" />
+            </TooltipHost>
+          )}
+        </>
+      )}
+    </Stack.Item>
+  );
+
+  return costBadge;
+};

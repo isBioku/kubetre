@@ -34,6 +34,10 @@ vet: ## Vet code
 test: $(SETUP_ENVTEST) $(BIN)/helm vet ## Run unit and envtest tests against a real API server
 	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(BIN)/envtest)" go test ./... -count=1
 
+.PHONY: ui-test
+ui-test: ## Run AzureTRE's UI test suite against the vendored UI
+	cd ui && npm ci --no-audit --no-fund --loglevel=error && npx tsc --noEmit -p . && npx vitest run
+
 .PHONY: build
 build: ## Build both binaries into bin/
 	go build -o $(BIN)/controller ./cmd/controller
@@ -60,6 +64,7 @@ acr-build-images:
 	az acr build --registry $(ACR_NAME) --image kubetre/api:$(IMG_TAG) --build-arg CMD=api .
 	az acr build --registry $(ACR_NAME) --image kubetre/gateway:$(IMG_TAG) --build-arg CMD=gateway .
 	az acr build --registry $(ACR_NAME) --image kubetre/linux-desktop:$(IMG_TAG) images/linux-desktop
+	az acr build --registry $(ACR_NAME) --image kubetre/ui:$(IMG_TAG) ui
 
 # Third-party images and charts copied into ACR so the cluster never pulls from Docker Hub.
 MIRROR := guacamole/guacamole:1.6.0 guacamole/guacd:1.6.0 envoyproxy/gateway:v1.9.2 \

@@ -15,9 +15,10 @@ Researcher's browser
    │ HTTPS (only inbound path)
    ▼
 Azure Firewall ── DNAT 443 ──► Envoy Gateway (internal load balancer)
-   ▲                              ├── /          access gateway broker (OIDC sign-in)
-   │ all egress                   ├── /guacamole Apache Guacamole ──► guacd ──► VMs and desktops
-   │                              └── /api/      KubeTRE API
+   ▲                              ├── /          AzureTRE's UI (Microsoft, MIT)
+   │ all egress                   ├── /api/      AzureTRE-compatible API, and KubeTRE's /api/v1
+   │                              ├── /gateway   access gateway broker (OIDC sign-in, Connect)
+   │                              └── /guacamole Apache Guacamole ──► guacd ──► VMs and desktops
 AKS (system, work and gateway node pools)
    ├── KubeTRE controller ── Crossplane ──► per-workspace subnet, NSG, firewall rules, Azure VMs
    └── Flux ◄── this Git repository
@@ -249,68 +250,47 @@ workspace subnets are expected: that is the isolation working.
 
 ## 8. Create the first workspace
 
-Get an API token and check who you are:
+Open `https://<gateway_hostname>` and sign in. This is AzureTRE's UI. Your account needs the
+`TREAdmin` app role on the API app, which the setup script assigned to you. Researchers need
+the `TREUser` role:
 
 ```sh
-HOST=gateway.tre.example.org
-API_ID=<oidc_audience from step 2>
-TOKEN=$(az account get-access-token --scope api://$API_ID/user_impersonation --query accessToken -o tsv)
-
-curl -s https://$HOST/api/v1/me -H "Authorization: Bearer $TOKEN"
+az ad app show --id <oidc_audience> --query "appRoles[].{role:value,id:id}" -o table
 ```
 
-`isAdmin` must be `true`. If it is `false`, assign yourself the `TREAdmin` role and get a new
-token.
+Select **Create new**, choose **Workspace with virtual machines**, and fill in the form:
 
-Create a workspace that can run VMs, naming its owner and researchers by email:
+- **Name** and **Description**.
+- **Workspace owners** and **Workspace researchers**, by email address. Owners default to you.
+- **Allowed internet domains**, for example `pypi.org`.
+- **Cost centre**, which the template requires.
 
-```sh
-curl -s -X POST https://$HOST/api/v1/workspaces -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{
-    "name": "genomics",
-    "displayName": "Genomics study",
-    "templateRef": "vm-workspace",
-    "parameters": {"costCentre": "CC-1234"},
-    "owners": ["olive@example.org"],
-    "researchers": ["rita@example.org"],
-    "allowedFQDNs": ["pypi.org", "files.pythonhosted.org"]
-  }'
-```
-
-The workspace moves from `Pending` to `Ready` in a few minutes, once Crossplane has created its
-subnet, network security group and firewall rules:
-
-```sh
-curl -s https://$HOST/api/v1/workspaces/genomics -H "Authorization: Bearer $TOKEN"
-kubectl get workspace genomics
-```
+The workspace card shows *deploying* and then *deployed* after a few minutes, once Crossplane
+has created its subnet, network security group and firewall rules. The notification panel
+follows the operation, as in AzureTRE.
 
 ## 9. Give a researcher a Windows VM
 
-The researcher signs in with their own account and asks for a VM:
+1. **Add Virtual Desktops.** A workspace owner opens the workspace, selects **Create new**
+   under Workspace Services and chooses **Virtual Desktops**. It is ready in seconds, because
+   it installs nothing itself.
+2. **Create the VM.** The researcher opens Virtual Desktops, selects **Create new** and
+   chooses **Windows VM**, **Linux VM** or **Linux desktop**. A VM is ready in five to ten
+   minutes.
+3. **Connect.** The researcher selects **Connect** on the VM's card. A new tab opens through
+   the gateway at `/gateway/connect/...`, signs in if needed, and hands the session to
+   Guacamole.
+
+Researchers see only their own VMs. Workspace owners see every VM in the UI, but only a VM's
+owner can open a session to it.
+
+To delete a resource, disable it first and then delete it, as in AzureTRE. KubeTRE's own API at
+`/api/v1` still works for scripts:
 
 ```sh
-TOKEN=$(az account get-access-token --scope api://$API_ID/user_impersonation --query accessToken -o tsv)
-
-curl -s -X POST https://$HOST/api/v1/workspaces/genomics/services \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
-    "name": "rita-windows",
-    "templateRef": "windows-vm",
-    "displayName": "Rita'"'"'s Windows VM",
-    "values": {"size": "medium"}
-  }'
+TOKEN=$(az account get-access-token --scope api://<oidc_audience>/user_impersonation --query accessToken -o tsv)
+curl -s https://<gateway_hostname>/api/v1/me -H "Authorization: Bearer $TOKEN"
 ```
-
-Use `"templateRef": "linux-vm"` for Ubuntu, or `"linux-desktop"` for a lighter container
-desktop. The VM is ready in five to ten minutes:
-
-```sh
-curl -s https://$HOST/api/v1/workspaces/genomics/services/rita-windows -H "Authorization: Bearer $TOKEN"
-kubectl -n ws-genomics get researchvm
-```
-
-Then the researcher opens `https://gateway.tre.example.org`, signs in and selects
-**Connect**.
 
 ## 10. Verify the security controls
 
@@ -319,7 +299,7 @@ Do these checks before anyone uses real data:
 1. **Clipboard and file transfer.** In the session, copying text out, pasting text in and
    dragging a file in must all fail.
 2. **Privacy between researchers.** A second researcher in the same workspace must not see
-   Rita's VM on the gateway page, and the workspace owner must not either.
+   Rita's VM in the UI. The workspace owner sees it, but **Connect** must fail for them.
 3. **Workspace isolation.** From inside the VM, connecting to another workspace's subnet must
    fail, and browsing to a site not in `allowedFQDNs` must fail.
 4. **No public addresses.** `az vm list-ip-addresses -g rg-<env>-workspaces -o table` must show
@@ -345,7 +325,8 @@ file, rerun `hack/entra-setup.sh`, and recreate the `kubetre-gateway-oidc` secre
 
 Delete in this order, or Azure will refuse to delete the network while VMs still use it:
 
-1. Delete every workspace through the API (`DELETE /api/v1/workspaces/<name>`). The controller
+1. Delete every workspace, from the UI (disable, then delete) or through the API
+   (`DELETE /api/v1/workspaces/<name>`). The controller
    removes its namespace, and Crossplane removes its VMs, subnet, NSG and firewall rules.
    Check that `rg-<env>-workspaces` is empty.
 2. Set `gitops_repository_url = ""` and `terraform apply`, so Flux stops reconciling.
@@ -362,11 +343,14 @@ Delete in this order, or Azure will refuse to delete the network while VMs still
 | A Crossplane provider is not healthy | The firewall denied its package download: run the query in step 7. If the Upbound package needs a subscription, build it from `crossplane-contrib/provider-upjet-azure`. |
 | A workspace stays `Pending` with `VMNetworkProvisioning` | `kubectl -n ws-<name> describe workspacenetwork vm-network`, then the composed resources, show the Azure error. Commonly the Crossplane identity lacks a permission or the address pool overlaps something. |
 | The gateway page does not load | Check the DNS record, that `kubetre-gateway-tls` exists, `kubectl -n kubetre-gateway get gateway kubetre -o yaml` for listener status, and that the Envoy service's IP equals the gateway ILB address. |
-| Sign-in fails with a redirect URI error | The gateway app's redirect URI must be exactly `https://<gateway_hostname>/callback`. Rerun the setup script with the right hostname. |
+| Sign-in to the UI fails with a redirect URI error | The UI app's single-page redirect URIs must include `https://<gateway_hostname>`. Rerun the setup script with the right hostname. |
+| **Connect** fails with a redirect URI error | The gateway app's redirect URI must be exactly `https://<gateway_hostname>/gateway/callback`. Rerun the setup script. |
+| The UI says you have no access | Assign the user the `TREUser` or `TREAdmin` role on the API app. |
 | The API returns 401 | The token's audience must be the API app ID and its issuer must end in `/v2.0`. Use the `az account get-access-token --scope` command above. |
 | `isAdmin` is false | Assign the `TREAdmin` role, then get a new token; roles are read from the token. |
 | The VM's Connect button is disabled | It shows the reason: usually "waiting for the virtual machine's address" while Azure is still creating it. |
 | Researchers cannot see a workspace | Their email in the workspace must match the email claim in their token. Check `/api/v1/me`. |
+| A deleted resource cannot be removed | Disable it first. The UI's delete is only enabled once a resource is disabled. |
 
 ## Security gaps
 

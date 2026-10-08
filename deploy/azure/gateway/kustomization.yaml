@@ -24,9 +24,29 @@ patches:
       - op: replace
         path: /data
         value:
-          EXTERNAL_URL: https://${GATEWAY_HOSTNAME}
+          EXTERNAL_URL: https://${GATEWAY_HOSTNAME}/gateway
           OIDC_ISSUER: ${OIDC_ISSUER}
           OIDC_CLIENT_ID: ${GATEWAY_OIDC_CLIENT_ID}
+  - target: {kind: ConfigMap, name: kubetre-ui}
+    patch: |
+      - op: replace
+        path: /data
+        value:
+          config.js: |
+            window.__TRE_CONFIG__ = {
+              "rootClientId": "${UI_CLIENT_ID}",
+              "rootTenantId": "${AZURE_TENANT_ID}",
+              "activeDirectoryUri": "https://login.microsoftonline.com",
+              "treApplicationId": "api://${OIDC_AUDIENCE}",
+              "treUrl": "/api",
+              "treId": "${TRE_ID}",
+              "pollingDelayMilliseconds": 10000,
+              "debug": false,
+              "version": "${KUBETRE_VERSION}",
+              "userManagementEnabled": false,
+              "uiSiteName": "Azure TRE",
+              "uiFooterText": "Azure Trusted Research Environment"
+            };
   - target: {kind: NetworkPolicy, name: guacd-egress}
     patch: |
       - op: replace
@@ -38,6 +58,9 @@ patches:
         path: /spec/egress/2/toFQDNs/0/matchName
         value: ${IDP_HOST}
 images:
+  - name: kubetre/ui
+    newName: ${ACR_LOGIN_SERVER}/kubetre/ui
+    newTag: ${KUBETRE_VERSION}
   - name: kubetre/gateway
     newName: ${ACR_LOGIN_SERVER}/kubetre/gateway
     newTag: ${KUBETRE_VERSION}

@@ -4,7 +4,8 @@ metadata:
   name: kubetre-gateway
   namespace: kubetre-gateway
 data:
-  EXTERNAL_URL: "https://gateway.example.org"
+  # The broker is served under /gateway; the UI is at /.
+  EXTERNAL_URL: "https://gateway.example.org/gateway"
   OIDC_ISSUER: "https://idp.example.org/realms/tre"
   OIDC_CLIENT_ID: "kubetre-gateway"
 ---
@@ -171,3 +172,81 @@ metadata:
 spec:
   selector: {app.kubernetes.io/name: guacd}
   ports: [{name: guacd, port: 4822, targetPort: guacd}]
+---
+# AzureTRE's web UI (Microsoft, MIT licensed), served as static files. config.js is its
+# runtime configuration; cloud overlays fill in the sign-in and API settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubetre-ui
+  namespace: kubetre-gateway
+data:
+  config.js: |
+    window.__TRE_CONFIG__ = {
+      "rootClientId": "",
+      "rootTenantId": "",
+      "activeDirectoryUri": "https://login.microsoftonline.com",
+      "treApplicationId": "api://kubetre-api",
+      "treUrl": "/api",
+      "treId": "kubetre",
+      "pollingDelayMilliseconds": 10000,
+      "debug": false,
+      "version": "dev",
+      "userManagementEnabled": false,
+      "uiSiteName": "Azure TRE",
+      "uiFooterText": "Azure Trusted Research Environment"
+    };
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+  namespace: kubetre-gateway
+  labels: {app.kubernetes.io/name: ui, app.kubernetes.io/part-of: kubetre-gateway}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: ui}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ui, app.kubernetes.io/part-of: kubetre-gateway}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector: {kubetre.io/node-pool: gateway}
+      tolerations: [{key: kubetre.io/node-pool, operator: Equal, value: gateway, effect: NoSchedule}]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ui
+          image: kubetre/ui:dev
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: http}}
+          livenessProbe: {httpGet: {path: /healthz, port: http}}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 250m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: config, mountPath: /usr/share/nginx/html/config.js, subPath: config.js, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+      volumes:
+        - {name: config, configMap: {name: kubetre-ui}}
+        - {name: tmp, emptyDir: {}}
+        - {name: cache, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+  namespace: kubetre-gateway
+spec:
+  selector: {app.kubernetes.io/name: ui}
+  ports: [{name: http, port: 8080, targetPort: http}]

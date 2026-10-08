@@ -2,3 +2,6 @@ bin/
 docs/
 config/
 .git/
+ui/
+infra/
+test/

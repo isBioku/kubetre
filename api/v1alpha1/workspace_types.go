@@ -60,6 +60,11 @@ type WorkspaceSpec struct {
 	// Egress adds destinations to the template's internet allowlist.
 	// +optional
 	Egress EgressSpec `json:"egress,omitempty"`
+
+	// Enabled mirrors AzureTRE: a workspace must be disabled before it can be deleted.
+	// +optional
+	// +kubebuilder:default=true
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // WorkspaceStatus is the observed state of a Workspace.
