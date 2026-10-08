@@ -322,3 +322,18 @@ func TestImageVersionsAgree(t *testing.T) {
 		t.Fatalf("kubetre_version default %v does not match VERSION %q", m, strings.TrimSpace(string(v)))
 	}
 }
+
+// Guacamole sessions live in one replica's memory, so the route must be sticky.
+func TestGuacamoleRouteIsSticky(t *testing.T) {
+	for _, u := range docs(build(t, "gateway")) {
+		if u.GetKind() != "BackendTrafficPolicy" {
+			continue
+		}
+		refs, _, _ := unstructured.NestedSlice(u.Object, "spec", "targetRefs")
+		typ, _, _ := unstructured.NestedString(u.Object, "spec", "loadBalancer", "consistentHash", "type")
+		if len(refs) == 1 && refs[0].(map[string]any)["name"] == "guacamole" && typ == "Cookie" {
+			return
+		}
+	}
+	t.Fatal("no cookie-affinity BackendTrafficPolicy on the guacamole route")
+}

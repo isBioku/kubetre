@@ -57,6 +57,26 @@ spec:
       # Remote sessions are long-lived WebSocket streams.
       timeouts: {request: "0s"}
 ---
+# Guacamole keeps each session in the memory of the replica that created it, so a browser
+# must stay on one replica: the hand-off, its REST calls and the tunnel all need the same pod.
+# Envoy sets this cookie on the first response and hashes on it afterwards.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: guacamole-affinity
+  namespace: kubetre-gateway
+spec:
+  targetRefs:
+    - {group: gateway.networking.k8s.io, kind: HTTPRoute, name: guacamole}
+  loadBalancer:
+    type: ConsistentHash
+    consistentHash:
+      type: Cookie
+      cookie:
+        name: kubetre-guacamole-affinity
+        ttl: 12h
+        attributes: {SameSite: Strict}
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
