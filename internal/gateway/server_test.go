@@ -227,14 +227,19 @@ func (h *harness) getFrom(path, fetchSite string) *http.Response {
 func TestConnectLinkFromTheUISignsInAndReturns(t *testing.T) {
 	h := newHarnessAt(t, "/gateway")
 	resp := h.getFrom("/gateway/connect/study/rita-vm", "same-origin")
-	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/gateway/login?next=%2Fgateway%2Fconnect%2Fstudy%2Frita-vm" {
-		t.Fatalf("anonymous connect: %d %s", resp.StatusCode, resp.Header.Get("Location"))
-	}
-	resp = h.get(resp.Header.Get("Location"))
 	loc, _ := url.Parse(resp.Header.Get("Location"))
-	resp = h.get("/gateway/callback?state=" + url.QueryEscape(loc.Query().Get("state")) + "&code=rita@example.com")
-	if resp.Header.Get("Location") != "/gateway/connect/study/rita-vm" {
-		t.Fatalf("callback should return to the connection, got %s", resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusFound || loc.Host != "idp.example.com" {
+		t.Fatalf("anonymous connect should go straight to sign-in: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	// The identity provider sends the browser back; that navigation is cross-site.
+	req, _ := http.NewRequest("GET", h.srv.URL+"/gateway/callback?state="+url.QueryEscape(loc.Query().Get("state"))+"&code=rita@example.com", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target := handoffTarget(t, resp); resp.StatusCode != http.StatusOK || !strings.HasPrefix(target, "/guacamole/#/?data=") {
+		t.Fatalf("callback should open the requested connection: %d %q", resp.StatusCode, target)
 	}
 	for _, c := range resp.Cookies() {
 		if c.Path != "/gateway/" {
@@ -268,7 +273,10 @@ func TestConnectLinkFromTheUISignsInAndReturns(t *testing.T) {
 
 func TestLoginIgnoresReturnPathsOutsideConnect(t *testing.T) {
 	h := newHarnessAt(t, "/gateway")
-	for _, next := range []string{"https://evil.example.com/", "//evil.example.com", "/gateway/../admin", "/gateway/connect/a/b/../../x", "/other/connect/a/b"} {
+	for _, next := range []string{"https://evil.example.com/", "//evil.example.com", "/gateway/../admin", "/gateway/connect/a/b/../../x", "/other/connect/a/b",
+		// A real connect path is ignored too: only the connect link, after its Fetch Metadata
+		// check, may start a sign-in that opens a session.
+		"/gateway/connect/study/rita-vm"} {
 		resp := h.get("/gateway/login?next=" + url.QueryEscape(next))
 		loc, _ := url.Parse(resp.Header.Get("Location"))
 		resp = h.get("/gateway/callback?state=" + url.QueryEscape(loc.Query().Get("state")) + "&code=rita@example.com")

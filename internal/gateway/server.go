@@ -111,9 +111,14 @@ func (s *Server) session(r *http.Request) (access.Identity, bool) {
 	return access.Identity{Subject: sess.Subject, Email: sess.Email, Name: sess.Name}, true
 }
 
-func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+func (s *Server) login(w http.ResponseWriter, r *http.Request) { s.startLogin(w, r, "") }
+
+// startLogin begins sign-in. next is a connection to open afterwards; only connectLink sets
+// it, after its Fetch Metadata check, so another site cannot start a sign-in that ends in
+// a session.
+func (s *Server) startLogin(w http.ResponseWriter, r *http.Request, next string) {
 	st := LoginState{State: randomString(24), Nonce: randomString(24), Verifier: randomString(48), Expires: s.now().Add(loginTTL)}
-	if next := r.URL.Query().Get("next"); s.isConnectPath(next) {
+	if s.isConnectPath(next) {
 		st.Next = next
 	}
 	v, err := s.Sealer.Seal(loginCookie, st)
@@ -154,8 +159,12 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setCookie(w, sessionCookie, v, sessionTTL)
 	s.Log.Info("signed in", "user", id.Principal())
+	// Open the connection the user asked for directly. Redirecting back to the connect link
+	// would not work: the browser marks a navigation that passed through the identity
+	// provider as cross-site, which connectLink refuses.
 	if s.isConnectPath(st.Next) {
-		http.Redirect(w, r, st.Next, http.StatusFound)
+		parts := strings.Split(strings.TrimPrefix(st.Next, s.path("/connect/")), "/")
+		s.open(w, r, id, parts[0], parts[1])
 		return
 	}
 	http.Redirect(w, r, s.path("/"), http.StatusFound)
@@ -205,7 +214,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.path("/login"), http.StatusSeeOther)
 		return
 	}
-	s.open(w, r, id)
+	s.open(w, r, id, r.PathValue("workspace"), r.PathValue("name"))
 }
 
 // connectLink serves the connection links AzureTRE's UI opens in a new tab ("Connect").
@@ -220,10 +229,10 @@ func (s *Server) connectLink(w http.ResponseWriter, r *http.Request) {
 	}
 	id, ok := s.session(r)
 	if !ok {
-		http.Redirect(w, r, s.path("/login")+"?next="+url.QueryEscape(s.path(r.URL.Path)), http.StatusFound)
+		s.startLogin(w, r, s.path(r.URL.Path))
 		return
 	}
-	s.open(w, r, id)
+	s.open(w, r, id, r.PathValue("workspace"), r.PathValue("name"))
 }
 
 var connectPath = regexp.MustCompile(`^/connect/[a-z0-9]([a-z0-9-]*[a-z0-9])?/[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
@@ -235,7 +244,7 @@ func (s *Server) isConnectPath(p string) bool {
 
 // open hands the user's connection to Guacamole. {name} is the connection Secret or, from
 // AzureTRE's UI, the service (user resource) that owns it.
-func (s *Server) open(w http.ResponseWriter, r *http.Request, id access.Identity) {
+func (s *Server) open(w http.ResponseWriter, r *http.Request, id access.Identity, ws, name string) {
 	// Authorization is re-evaluated on every connect, from current workspace membership
 	// and service ownership.
 	conns, err := s.Resolver.Connections(r.Context(), id)
@@ -243,7 +252,6 @@ func (s *Server) open(w http.ResponseWriter, r *http.Request, id access.Identity
 		http.Error(w, "could not list your connections", http.StatusInternalServerError)
 		return
 	}
-	ws, name := r.PathValue("workspace"), r.PathValue("name")
 	var match *Connection
 	for i := range conns {
 		c := &conns[i]
