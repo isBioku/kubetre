@@ -21,6 +21,10 @@ spec:
             url: {{ printf "docker://%s" .Values.image | quote }}
             pullMethod: node
         storage:
+          # A filesystem volume: CDI's non-root importer cannot open an Azure disk as a raw
+          # block device, which is what the storage profile would otherwise choose.
+          volumeMode: Filesystem
+          accessModes: [ReadWriteOnce]
           {{- with .Values.storageClassName }}
           storageClassName: {{ . }}
           {{- end }}

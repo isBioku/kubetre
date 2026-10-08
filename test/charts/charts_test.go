@@ -187,7 +187,7 @@ func TestKubeVirtVMChart(t *testing.T) {
 	}
 	dv := get(vm, "spec", "dataVolumeTemplates", 0, "spec")
 	if get(dv, "source", "registry", "url") != "docker://acr.example.io/containerdisks/ubuntu:24.04" ||
-		get(dv, "source", "registry", "pullMethod") != "node" || get(dv, "storage", "resources", "requests", "storage") != "40Gi" {
+		get(dv, "source", "registry", "pullMethod") != "node" || get(dv, "storage", "volumeMode") != "Filesystem" || get(dv, "storage", "resources", "requests", "storage") != "40Gi" {
 		t.Errorf("disk: %v", dv)
 	}
 
