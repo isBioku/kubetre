@@ -12,6 +12,9 @@ work_node_count    = { min = 1, max = 1 }
 gateway_vm_size    = "Standard_D2s_v5"
 gateway_node_count = { min = 1, max = 1 }
 
+# Used only when kubevirt_enabled is set: one D4s_v5 for KubeVirt VMs.
+kubevirt_node_count = { min = 1, max = 1 }
+
 research_vm_sizes = {
   small  = "Standard_D2s_v5"
   medium = "Standard_D2s_v5"
