@@ -40,7 +40,7 @@ an official Microsoft release.
 | 5. AzureTRE UI | Microsoft's AzureTRE UI served at `/`, backed by an AzureTRE-compatible API; workspaces, Virtual Desktops and personal VMs created from the UI |
 
 Hosting is cloud-only: AKS first, EKS and GKE later ([ADR 7](docs/adr/0007-cloud-targets.md)).
-The [documentation](docs/index.md) follows AzureTRE's structure: overview and architecture,
+The [documentation](https://isbioku.github.io/kubetre/) ([source](docs/index.md)) follows AzureTRE's structure: overview and architecture,
 quickstart, using KubeTRE, templates, administration, development and troubleshooting. Build
 it with `make docs`. Design decisions are in [docs/adr](docs/adr/index.md).
 

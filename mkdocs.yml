@@ -1,6 +1,7 @@
 ---
 site_name: KubeTRE
 site_description: An experimental cloud-native port of Microsoft's Azure Trusted Research Environment to Kubernetes
+site_url: https://isbioku.github.io/kubetre/
 repo_url: https://github.com/isBioku/kubetre
 edit_uri: ""
 docs_dir: docs
