@@ -59,7 +59,7 @@ spec:
                 kubetre.io/role: vm-subnet
             spec:
               forProvider:
-                resourceGroupName: {{ $env.resourceGroup | quote }}
+                resourceGroupName: {{ $env.vnetResourceGroup | quote }}
                 virtualNetworkName: {{ $env.virtualNetworkName | quote }}
                 addressPrefixes: [{{ $prefix | quote }}]
                 defaultOutboundAccessEnabled: false

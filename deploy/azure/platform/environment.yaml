@@ -7,6 +7,7 @@ data:
   location: ${LOCATION}
   resourceGroup: ${WORKSPACE_RESOURCE_GROUP}
   virtualNetworkName: ${VNET_NAME}
+  vnetResourceGroup: ${VNET_RESOURCE_GROUP}
   routeTableId: ${ROUTE_TABLE_ID}
   firewallPolicyId: ${FIREWALL_POLICY_ID}
   accessGatewayPrefixes: ["${ACCESS_GATEWAY_PREFIX}"]

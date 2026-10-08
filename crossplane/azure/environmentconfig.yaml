@@ -8,8 +8,10 @@ data:
   location: uksouth
   # Resource group that holds workspace subnets, NICs and VMs.
   resourceGroup: rg-kubetre-workspaces
-  # The VNet that also hosts AKS; workspace subnets are carved from the controller's VM pool.
+  # The VNet that also hosts AKS, and its resource group. Workspace subnets must be created
+  # there (a subnet always lives with its VNet), not in resourceGroup.
   virtualNetworkName: vnet-kubetre
+  vnetResourceGroup: rg-kubetre
   # Route table whose 0.0.0.0/0 route points at the Azure Firewall.
   routeTableId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/routeTables/rt-kubetre-egress
   firewallPolicyId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/firewallPolicies/fwp-kubetre

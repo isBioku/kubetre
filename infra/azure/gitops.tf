@@ -43,6 +43,7 @@ locals {
     CROSSPLANE_CLIENT_ID     = azurerm_user_assigned_identity.crossplane.client_id
     WORKSPACE_RESOURCE_GROUP = azurerm_resource_group.workspaces.name
     VNET_NAME                = azurerm_virtual_network.this.name
+    VNET_RESOURCE_GROUP      = azurerm_virtual_network.this.resource_group_name
     ROUTE_TABLE_ID           = azurerm_route_table.egress.id
     FIREWALL_POLICY_ID       = azurerm_firewall_policy.this.id
     ACCESS_GATEWAY_PREFIX    = local.subnets.gateway_pods

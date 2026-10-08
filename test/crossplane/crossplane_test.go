@@ -242,6 +242,11 @@ func TestWorkspaceNetworkComposition(t *testing.T) {
 			t.Fatalf("missing composed resource %q", want)
 		}
 	}
+	// A subnet must be created in its VNet's resource group, not the workspace resource group.
+	env := environment(t)
+	if rg, _, _ := unstructured.NestedString(got["subnet"].Object, "spec", "forProvider", "resourceGroupName"); rg != env["vnetResourceGroup"] || rg == env["resourceGroup"] {
+		t.Errorf("subnet resource group = %q, want the VNet's %q", rg, env["vnetResourceGroup"])
+	}
 	if got["subnet"].GetAnnotations()["crossplane.io/external-name"] != "snet-ws-study" {
 		t.Errorf("subnet name = %v", got["subnet"].GetAnnotations())
 	}

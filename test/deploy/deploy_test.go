@@ -35,6 +35,7 @@ var values = map[string]string{
 	"CROSSPLANE_CLIENT_ID":     "66666666-6666-6666-6666-666666666666",
 	"WORKSPACE_RESOURCE_GROUP": "rg-kubetredev-workspaces",
 	"VNET_NAME":                "vnet-kubetredev",
+	"VNET_RESOURCE_GROUP":      "rg-kubetredev",
 	"ROUTE_TABLE_ID":           "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetredev/providers/Microsoft.Network/routeTables/rt-kubetredev-egress",
 	"FIREWALL_POLICY_ID":       "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetredev/providers/Microsoft.Network/firewallPolicies/fwp-kubetredev",
 	"ACCESS_GATEWAY_PREFIX":    "10.224.8.0/24",
