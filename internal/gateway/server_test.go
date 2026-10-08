@@ -3,12 +3,14 @@ package gateway
 import (
 	"context"
 	"errors"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -131,8 +133,8 @@ func TestConnectHandsGuacamoleOneHardenedSession(t *testing.T) {
 	h := newHarness(t)
 	h.signIn("rita@example.com")
 	resp := h.post("/connect/study/rita-vm-credentials", h.srv.URL)
-	loc := resp.Header.Get("Location")
-	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(loc, "/guacamole/#/?data=") {
+	loc := handoffTarget(t, resp)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(loc, "/guacamole/#/?data=") {
 		t.Fatalf("connect: %d %s", resp.StatusCode, loc)
 	}
 	data, _ := url.QueryUnescape(strings.TrimPrefix(loc, "/guacamole/#/?data="))
@@ -240,10 +242,10 @@ func TestConnectLinkFromTheUISignsInAndReturns(t *testing.T) {
 		}
 	}
 	resp = h.getFrom("/gateway/connect/study/rita-vm", "same-origin")
-	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(resp.Header.Get("Location"), "/guacamole/#/?data=") {
-		t.Fatalf("connect by user resource name: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	if target := handoffTarget(t, resp); resp.StatusCode != http.StatusOK || !strings.HasPrefix(target, "/guacamole/#/?data=") {
+		t.Fatalf("connect by user resource name: %d %s", resp.StatusCode, target)
 	}
-	if resp := h.getFrom("/gateway/connect/study/rita-vm", "none"); resp.StatusCode != http.StatusSeeOther {
+	if resp := h.getFrom("/gateway/connect/study/rita-vm", "none"); resp.StatusCode != http.StatusOK {
 		t.Fatalf("typed URL: %d", resp.StatusCode)
 	}
 	for name, tc := range map[string]struct {
@@ -274,4 +276,52 @@ func TestLoginIgnoresReturnPathsOutsideConnect(t *testing.T) {
 			t.Fatalf("next=%q redirected to %q", next, got)
 		}
 	}
+}
+
+var handoffAttr = regexp.MustCompile(`data-target="([^"]+)"`)
+
+// handoffTarget reads the Guacamole URL from the broker's hand-off page.
+func handoffTarget(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	body, _ := io.ReadAll(resp.Body)
+	m := handoffAttr.FindStringSubmatch(string(body))
+	if m == nil {
+		return ""
+	}
+	return html.UnescapeString(m[1])
+}
+
+// A browser that still holds a Guacamole session would make Guacamole ignore the new
+// payload, so the hand-off page ends that session first, using only same-origin script.
+func TestHandoffEndsTheOldGuacamoleSession(t *testing.T) {
+	h := newHarnessAt(t, "/gateway")
+	h.signIn2("/gateway", "rita@example.com")
+	resp := h.getFrom("/gateway/connect/study/rita-vm", "same-origin")
+	body, _ := io.ReadAll(resp.Body)
+	page := string(body)
+	if !strings.Contains(page, `<script src="/gateway/handoff.js" defer></script>`) ||
+		!strings.Contains(page, `data-session="/guacamole/api/session"`) || strings.Contains(page, "<script>") {
+		t.Fatalf("hand-off page:\n%s", page)
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'self'") {
+		t.Fatalf("CSP = %q", csp)
+	}
+	js := h.getFrom("/gateway/handoff.js", "same-origin")
+	src, _ := io.ReadAll(js.Body)
+	for _, want := range []string{`removeItem("GUAC_AUTH_TOKEN")`, `method: "DELETE"`, `"Guacamole-Token": token`, "location.replace(target)"} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("handoff.js is missing %s", want)
+		}
+	}
+	if ct := js.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("handoff.js content type = %q", ct)
+	}
+}
+
+// signIn2 signs in through a gateway served under a base path.
+func (h *harness) signIn2(base, email string) {
+	h.t.Helper()
+	resp := h.get(base + "/login")
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	h.get(base + "/callback?state=" + url.QueryEscape(loc.Query().Get("state")) + "&code=" + url.QueryEscape(email))
 }

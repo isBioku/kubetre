@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -50,6 +51,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("POST /connect/{workspace}/{name}", s.connect)
 	mux.HandleFunc("GET /connect/{workspace}/{name}", s.connectLink)
+	mux.HandleFunc("GET /handoff.js", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = io.WriteString(w, handoffScript)
+	})
 	base := s.basePath()
 	if base == "" {
 		return securityHeaders(mux)
@@ -269,9 +274,41 @@ func (s *Server) open(w http.ResponseWriter, r *http.Request, id access.Identity
 	s.Log.Info("session opened", "user", id.Principal(), "workspace", c.Workspace, "service", c.Service,
 		"connection", c.Name, "protocol", c.Protocol, "target", c.Hostname)
 	// The payload travels in the URL fragment, which browsers never send to a server,
-	// so it stays out of proxy and access logs.
-	http.Redirect(w, r, s.GuacamolePath+"#/?data="+url.QueryEscape(data), http.StatusSeeOther)
+	// so it stays out of proxy and access logs. The hand-off page first ends any Guacamole
+	// session the browser still holds: Guacamole would otherwise re-use that session and
+	// ignore the new payload, because the JSON extension does not update existing sessions.
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = handoffPage.Execute(w, map[string]string{
+		"Target":  s.GuacamolePath + "#/?data=" + url.QueryEscape(data),
+		"Session": s.GuacamolePath + "api/session",
+		"Script":  s.path("/handoff.js"),
+	})
 }
+
+var handoffPage = template.Must(template.New("handoff").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connecting</title><script src="{{.Script}}" defer></script></head>
+<body><p id="handoff" data-target="{{.Target}}" data-session="{{.Session}}">Connecting&hellip;</p>
+<noscript><a href="{{.Target}}">Continue to the session</a></noscript></body></html>`))
+
+// handoffScript clears the browser's stored Guacamole token, revokes that session, then
+// opens Guacamole with the new payload. It is a separate file so the CSP needs no inline script.
+const handoffScript = `(function () {
+  var el = document.getElementById("handoff");
+  var target = el.getAttribute("data-target");
+  var go = function () { window.location.replace(target); };
+  var token = null;
+  try {
+    var raw = window.localStorage.getItem("GUAC_AUTH_TOKEN");
+    if (raw) { try { token = JSON.parse(raw); } catch (e) { token = raw; } }
+    window.localStorage.removeItem("GUAC_AUTH_TOKEN");
+  } catch (e) {}
+  if (!token) { go(); return; }
+  fetch(el.getAttribute("data-session"), {
+    method: "DELETE", headers: {"Guacamole-Token": token}, credentials: "same-origin", keepalive: true
+  }).then(go, go);
+})();
+`
 
 var homePage = template.Must(template.New("home").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

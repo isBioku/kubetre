@@ -43,7 +43,7 @@ var values = map[string]string{
 	"VM_ADDRESS_POOL":          "10.240.0.0/16",
 	"ENCRYPTION_AT_HOST":       "true",
 	"ACR_LOGIN_SERVER":         "acrkubetredev.azurecr.io",
-	"KUBETRE_VERSION":          "0.2.1",
+	"KUBETRE_VERSION":          "0.2.2",
 	"OIDC_ISSUER":              "https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0",
 	"OIDC_AUDIENCE":            "77777777-7777-7777-7777-777777777777",
 	"ROLES_CLAIM":              "roles",
