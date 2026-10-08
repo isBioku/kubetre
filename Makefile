@@ -38,10 +38,19 @@ test: $(SETUP_ENVTEST) $(BIN)/helm vet ## Run unit and envtest tests against a r
 ui-test: ## Run AzureTRE's UI test suite against the vendored UI
 	cd ui && npm ci --no-audit --no-fund --loglevel=error && npx tsc --noEmit -p . && npx vitest run
 
+.PHONY: docs docs-serve
+docs: ## Build the documentation site into bin/site, failing on broken links
+	python3 -m venv $(BIN)/docs-venv && $(BIN)/docs-venv/bin/pip install -q --disable-pip-version-check mkdocs-material
+	$(BIN)/docs-venv/bin/mkdocs build --strict
+
+docs-serve: docs ## Serve the documentation at http://127.0.0.1:8000
+	$(BIN)/docs-venv/bin/mkdocs serve
+
 .PHONY: build
-build: ## Build both binaries into bin/
+build: ## Build the controller, API and gateway binaries into bin/
 	go build -o $(BIN)/controller ./cmd/controller
 	go build -o $(BIN)/api ./cmd/api
+	go build -o $(BIN)/gateway ./cmd/gateway
 
 .PHONY: run-controller run-api run-gateway
 run-controller: ## Run the controller against the current kubeconfig

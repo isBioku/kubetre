@@ -1,0 +1,123 @@
+---
+site_name: KubeTRE
+site_description: An experimental cloud-native port of Microsoft's Azure Trusted Research Environment to Kubernetes
+repo_url: https://github.com/isBioku/kubetre
+edit_uri: ""
+docs_dir: docs
+site_dir: bin/site
+
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: blue grey
+    accent: indigo
+  features:
+    - navigation.instant
+    - navigation.indexes
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.tabbed
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format ""
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
+nav:
+  - Overview:
+      - Introducing KubeTRE: index.md
+      - KubeTRE and AzureTRE: overview/azuretre-comparison.md
+      - User Roles: overview/user-roles.md
+      - Architecture:
+          - System Architecture: overview/architecture.md
+          - Network Architecture: overview/networking.md
+          - Azure Resources: overview/azure-resources.md
+          - Airlock: overview/airlock.md
+          - Costs: overview/costs.md
+      - Terms and Definitions: overview/terms.md
+
+  - QuickStart:
+      - quickstart/index.md
+      - 1. Prerequisites: quickstart/prerequisites.md
+      - 2. Identity: quickstart/identity.md
+      - 3. Infrastructure: quickstart/infrastructure.md
+      - 4. Images and Charts: quickstart/images-and-charts.md
+      - 5. Gateway Hostname and Secrets: quickstart/gateway.md
+      - 6. GitOps: quickstart/gitops.md
+      - 7. First Workspace: quickstart/first-workspace.md
+      - 8. Virtual Desktops: quickstart/virtual-desktops.md
+      - 9. Verify Security: quickstart/verify.md
+
+  - Using KubeTRE:
+      - Introduction: using/index.md
+      - Using Virtual Machines: using/vms.md
+
+  - Templates and Services:
+      - templates/index.md
+      - Workspaces:
+          - Base: templates/workspaces/base.md
+          - With Virtual Machines: templates/workspaces/vm-workspace.md
+      - Workspace Services:
+          - Virtual Desktops: templates/workspace-services/virtual-desktops.md
+      - User Resources:
+          - Windows VM: templates/user-resources/windows-vm.md
+          - Linux VM: templates/user-resources/linux-vm.md
+          - Linux Desktop: templates/user-resources/linux-desktop.md
+          - Linux VM on KubeVirt: templates/user-resources/linux-vm-kubevirt.md
+
+  - Technical Guide:
+      - Administration:
+          - Configuration: admin/configuration.md
+          - Identities: admin/identities.md
+          - Registering Templates: admin/registering-templates.md
+          - Upgrading: admin/upgrading.md
+          - Egress Control: admin/egress.md
+          - Custom Domain and TLS: admin/custom-domain.md
+          - KubeVirt: admin/kubevirt.md
+          - Tear-down: admin/tear-down.md
+      - Development:
+          - developers/index.md
+          - Local Development: developers/local-development.md
+          - API: developers/api.md
+          - UI: developers/ui.md
+          - Authoring Templates: developers/authoring-templates.md
+      - Troubleshooting:
+          - troubleshooting/index.md
+          - Logs: troubleshooting/logs.md
+          - Deployment and Flux: troubleshooting/flux.md
+          - Workspaces and Services: troubleshooting/workspaces.md
+          - Connecting: troubleshooting/connecting.md
+          - Sign-in and the API: troubleshooting/sign-in.md
+      - Architecture Decisions:
+          - adr/index.md
+          - 1. Kubernetes Is the Control Plane: adr/0001-operator-model.md
+          - 2. Tenancy: adr/0002-tenancy.md
+          - 3. Identity: adr/0003-identity.md
+          - 4. Egress: adr/0004-egress.md
+          - 5. Go Conventions: adr/0005-go-and-kubebuilder-conventions.md
+          - 6. Templates and Desktops: adr/0006-templates-and-desktops.md
+          - 7. Cloud Targets: adr/0007-cloud-targets.md
+          - 8. VM Security Model: adr/0008-vm-security-model.md
+          - 9. Access Gateway: adr/0009-access-gateway.md
+          - 10. AzureTRE UI: adr/0010-azuretre-ui.md
+          - 11. KubeVirt VMs: adr/0011-kubevirt-vms.md
+
+not_in_nav: |
+  /deployment-guide.md

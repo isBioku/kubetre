@@ -40,7 +40,9 @@ an official Microsoft release.
 | 5. AzureTRE UI | Microsoft's AzureTRE UI served at `/`, backed by an AzureTRE-compatible API; workspaces, Virtual Desktops and personal VMs created from the UI |
 
 Hosting is cloud-only: AKS first, EKS and GKE later ([ADR 7](docs/adr/0007-cloud-targets.md)).
-Design decisions are in [docs/adr](docs/adr).
+The [documentation](docs/index.md) follows AzureTRE's structure: overview and architecture,
+quickstart, using KubeTRE, templates, administration, development and troubleshooting. Build
+it with `make docs`. Design decisions are in [docs/adr](docs/adr/index.md).
 
 ## Layout
 
@@ -63,7 +65,7 @@ test/e2e/            API + controller against a real API server
 test/charts/         rendered charts checked against Pod Security admission and the VM XRD
 test/crossplane/     compositions rendered and checked against the real Azure provider schemas
 test/deploy/         GitOps tree checked against Terraform outputs and real Flux/Crossplane schemas
-docs/                deployment guide and architecture decision records (docs/adr)
+docs/                documentation site (mkdocs.yml) and architecture decisions (docs/adr)
 hack/                Entra ID setup and CRD refresh scripts
 ```
 
@@ -83,9 +85,9 @@ Infrastructure checks, also without an Azure account:
 make infra-test     # terraform validate plus security tests against a mocked provider
 ```
 
-To deploy an environment, follow the [deployment guide](docs/deployment-guide.md). It goes from
-an empty Azure subscription to a researcher connected to a Windows VM, and covers upgrades,
-teardown and troubleshooting. The VM security model and its open gaps are in
+To deploy an environment, follow the [Quickstart](docs/quickstart/index.md). It goes from
+an empty Azure subscription to a researcher connected to a Windows VM. Upgrades, tear-down and
+troubleshooting are in the Administration and Troubleshooting sections. The VM security model and its open gaps are in
 [ADR 8](docs/adr/0008-vm-security-model.md).
 
 ## Roadmap
@@ -96,7 +98,7 @@ teardown and troubleshooting. The VM security model and its open gaps are in
 4. **Access gateway.** Done in code; certificate automation and session recording pending.
 5. **Shared services.** Package mirror (Nexus) and git mirror in `kubetre-shared`.
 6. **UI.** Template-driven forms from the template schemas.
-7. **Airlock.** PostgreSQL state, storage per stage, presigned URLs, malware scanning, review VMs.
+7. **Airlock.** Request state as resources, stage in metadata rather than storage per stage (AzureTRE has moved the same way), short-lived links, malware scanning, review VMs. See [Airlock](docs/overview/airlock.md).
 8. **Hardening.** Audit logs, Defender, stronger container isolation, cost reporting.
 
 ## Status and license

@@ -365,3 +365,20 @@ func TestKubeVirtPlacementFitsAKS(t *testing.T) {
 		t.Error("KubeVirt infra must run on the system pool and VMs on the kubevirt pool")
 	}
 }
+
+// The configuration reference must document every Terraform variable.
+func TestConfigurationReferenceCoversEveryVariable(t *testing.T) {
+	tf, err := os.ReadFile(filepath.Join(root, "infra", "azure", "variables.tf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := os.ReadFile(filepath.Join(root, "docs", "admin", "configuration.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range regexp.MustCompile(`(?m)^variable "([a-z0-9_]+)"`).FindAllStringSubmatch(string(tf), -1) {
+		if !strings.Contains(string(doc), "| `"+m[1]+"` |") {
+			t.Errorf("docs/admin/configuration.md does not document variable %s", m[1])
+		}
+	}
+}
