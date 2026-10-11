@@ -448,3 +448,32 @@ func TestWorkspaceParametersAreFixedUnlessUpdateable(t *testing.T) {
 	e.expect(422, "PATCH", "/api/workspaces/study1", admin, `{"properties":{"costCentre":"CC-9999"}}`, "etag", cur["_etag"].(string))
 	e.expect(202, "PATCH", "/api/workspaces/study1", admin, `{"properties":{"costCentre":"CC-1234","description":"new"}}`, "etag", cur["_etag"].(string))
 }
+
+// Web services in a workspace report the internal address its VMs open them at.
+func TestWorkspaceServiceReportsItsInternalAddress(t *testing.T) {
+	e := newEnv(t, vmWorkspace("study1"))
+	ns := controller.NamespacePrefix + "study1"
+	ctx := context.Background()
+	if err := e.c.Create(ctx, &treV1.WorkspaceService{ObjectMeta: metav1.ObjectMeta{Name: "atlas", Namespace: ns},
+		Spec: treV1.WorkspaceServiceSpec{TemplateRef: "virtual-desktops", DisplayName: "Atlas"}}); err != nil {
+		t.Fatal(err)
+	}
+	lb := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "atlas", Namespace: ns,
+		Labels: map[string]string{"kubetre.io/service": "atlas"}, Annotations: map[string]string{"kubetre.io/url-path": "/atlas/"}},
+		Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Ports: []corev1.ServicePort{{Port: 80}}}}
+	if err := e.c.Create(ctx, lb); err != nil {
+		t.Fatal(err)
+	}
+	lb.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "10.240.0.12"}}
+	if err := e.c.Status().Update(ctx, lb); err != nil {
+		t.Fatal(err)
+	}
+	props := m(m(e.expect(200, "GET", "/api/workspaces/study1/workspace-services/atlas", rita, "")["workspaceService"])["properties"])
+	if props["connection_uri"] != "http://10.240.0.12/atlas/" || props["is_exposed_externally"] != false {
+		t.Fatalf("properties = %v", props)
+	}
+	listed := list(e.expect(200, "GET", "/api/workspaces/study1/workspace-services", rita, "")["workspaceServices"])
+	if len(listed) != 1 || m(m(listed[0])["properties"])["private_ip"] != "10.240.0.12" {
+		t.Fatalf("listed = %v", listed)
+	}
+}

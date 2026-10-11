@@ -1,0 +1,68 @@
+{{- $name := printf "%s-webapi" (include "ohdsi.name" .) -}}
+{{- $db := printf "%s-db" (include "ohdsi.name" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "ohdsi.selector" (dict "root" . "component" "webapi") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ohdsi.labels" . | nindent 8 }}
+        app.kubernetes.io/name: webapi
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "ohdsi.podSecurity" (dict "uid" 101) | nindent 8 }}
+      containers:
+        - name: webapi
+          image: "{{ .Values.images.webapi.repository }}:{{ .Values.images.webapi.tag }}"
+          env:
+            - {name: JAVA_OPTS, value: {{ printf "-Xmx%dm" (sub (mul (int .Values.webapiMemoryGi) 1024) 512) | quote }}}
+            - {name: DATASOURCE_DRIVERCLASSNAME, value: org.postgresql.Driver}
+            - {name: DATASOURCE_URL, value: {{ include "ohdsi.jdbc" . | quote }}}
+            - {name: DATASOURCE_USERNAME, value: ohdsi}
+            - name: DATASOURCE_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $db }}, key: password}}
+            - {name: DATASOURCE_OHDSI_SCHEMA, value: webapi}
+            - {name: SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA, value: webapi}
+            - {name: SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT, value: org.hibernate.dialect.PostgreSQLDialect}
+            - {name: SPRING_BATCH_REPOSITORY_TABLEPREFIX, value: webapi.batch_}
+            - {name: FLYWAY_DATASOURCE_DRIVERCLASSNAME, value: org.postgresql.Driver}
+            - {name: FLYWAY_DATASOURCE_URL, value: {{ include "ohdsi.jdbc" . | quote }}}
+            - {name: FLYWAY_DATASOURCE_USERNAME, value: ohdsi}
+            - name: FLYWAY_DATASOURCE_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $db }}, key: password}}
+            - {name: FLYWAY_LOCATIONS, value: "classpath:db/migration/postgresql"}
+            - {name: FLYWAY_PLACEHOLDERS_OHDSISCHEMA, value: webapi}
+            - {name: FLYWAY_SCHEMAS, value: webapi}
+            - {name: FLYWAY_BASELINEONMIGRATE, value: "true"}
+            - {name: FLYWAY_TABLE, value: schema_history}
+            # Only the workspace's VMs reach WebAPI; see the template's documentation.
+            - {name: SECURITY_PROVIDER, value: DisabledSecurity}
+            - {name: SECURITY_CORS_ENABLED, value: "false"}
+          ports: [{name: http, containerPort: 8080}]
+          startupProbe: {httpGet: {path: /WebAPI/info, port: http}, periodSeconds: 10, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /WebAPI/info, port: http}, periodSeconds: 15}
+          resources:
+            requests: {cpu: 250m, memory: {{ printf "%dGi" (int .Values.webapiMemoryGi) }}}
+            limits: {cpu: "2", memory: {{ printf "%dGi" (int .Values.webapiMemoryGi) }}}
+          securityContext: {{- include "ohdsi.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - {name: tmp, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "ohdsi.selector" (dict "root" . "component" "webapi") | nindent 4 }}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

@@ -3,4 +3,3 @@
 resources:
   - deployer.yaml
   - networkpolicy.yaml
-  - api-rbac.yaml

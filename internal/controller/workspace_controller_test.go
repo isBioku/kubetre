@@ -180,8 +180,9 @@ func TestWorkspaceBecomesReadyWithIsolatedNamespace(t *testing.T) {
 
 	nps := &networkingv1.NetworkPolicyList{}
 	must(t, k8s.List(ctx, nps, client.InNamespace("ws-alpha")))
-	if len(nps.Items) != 5 {
-		t.Fatalf("expected 5 network policies, got %d", len(nps.Items))
+	// Without VMs, the VM ingress policy exists but admits nothing.
+	if len(nps.Items) != 6 {
+		t.Fatalf("expected 6 network policies, got %d", len(nps.Items))
 	}
 	var denyAll bool
 	for _, np := range nps.Items {

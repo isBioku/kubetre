@@ -80,6 +80,8 @@ nav:
           - Airlock Import Review: templates/workspaces/airlock-import-review.md
       - Workspace Services:
           - Virtual Desktops: templates/workspace-services/virtual-desktops.md
+          - Gitea: templates/workspace-services/gitea.md
+          - OHDSI Atlas: templates/workspace-services/ohdsi.md
       - User Resources:
           - Windows VM: templates/user-resources/windows-vm.md
           - Linux VM: templates/user-resources/linux-vm.md

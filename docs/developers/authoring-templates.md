@@ -96,6 +96,7 @@ spec:
 | `kubetre.service` | this service's name, also the Helm release name |
 | `kubetre.owner` | the owner's email, for user resources |
 | `kubetre.podSecurity` | the namespace's Pod Security level |
+| `kubetre.vmSubnet` | the workspace's VM subnet, such as `snet-ws-study1`; empty without VMs |
 
 **What the chart must respect:**
 
@@ -107,8 +108,9 @@ spec:
 - **Pod Security.** Its pods must pass the namespace's level, usually `restricted`.
 - **Limits.** Set resource limits; otherwise the workspace's LimitRange defaults apply, and
   they are small.
-- **Network.** The workspace's network policies apply. Only guacd can reach its pods, and
-  outbound traffic is limited to the allowed domains.
+- **Network.** The workspace's network policies apply. Only guacd, and the workspace's VMs for
+  pods labelled `kubetre.io/vm-access`, can reach its pods, and outbound traffic is limited to
+  the allowed domains.
 
 **Offering a Connect button.** Create a Secret labelled `kubetre.io/connection: "true"`, with
 `kubetre.io/service` set to the release name:
@@ -125,6 +127,21 @@ For an Azure VM, leave out `hostname` and annotate the Secret with
 IP and checks it lies in the workspace's subnet. The gateway trusts a connection Secret only
 when Helm's release annotation matches its service label, so one chart cannot publish a
 connection for another user's resource. See `charts/linux-desktop` and `charts/kubevirt-vm`.
+
+**Serving the workspace's machines.** A web service that researchers open from their VMs,
+such as Gitea or OHDSI, sets `requiresVirtualMachines: true` on its template and:
+
+- creates a `LoadBalancer` Service with `service.beta.kubernetes.io/azure-load-balancer-internal: "true"`
+  and `service.beta.kubernetes.io/azure-load-balancer-internal-subnet: {{ .Values.kubetre.vmSubnet }}`,
+  so its address is in the workspace's own subnet, and `externalTrafficPolicy: Local`, so pods
+  see the VM's address;
+- labels that Service `kubetre.io/service: {{ .Values.kubetre.service }}`. The API then shows
+  its address as the service's internal `connection_uri`, adding the path in an optional
+  `kubetre.io/url-path` annotation;
+- labels the pods behind it `kubetre.io/vm-access: "true"`. Only those pods admit the
+  workspace's VM subnet; keep databases and back ends unlabelled.
+
+See `charts/gitea` and `charts/ohdsi`.
 
 ## Cloud resources
 

@@ -1,0 +1,32 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: gitea
+spec:
+  # AzureTRE's Gitea workspace service: a Git server for one workspace, reached only from the
+  # workspace's VMs through an internal load balancer in its subnet.
+  kind: WorkspaceService
+  displayName: Gitea
+  description: A private Git server for this workspace, reached from the workspace's machines. Members register their own accounts.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  chart:
+    url: oci://registry.example.org/charts/gitea
+    version: 0.2.0
+    provider: azure
+  values:
+    mode: workspace
+    image: {repository: registry.example.org/gitea/gitea, tag: "28.1.0-rootless"}
+    curlImage: {repository: registry.example.org/curlimages/curl, tag: "8.22.0"}
+    service: {loadBalancerIP: "", subnet: ""}
+  valuesSchema:
+    type: object
+    properties:
+      storageGi: {type: integer, title: Storage (GiB), minimum: 10, maximum: 2048, default: 50}
+      migrationDomains:
+        type: string
+        title: Import repositories from
+        description: Comma-separated hosts members may import repositories from, for example the shared Gitea mirror's address. Empty allows any host the workspace can reach.
+        default: ""
+        updateable: true
+    additionalProperties: false

@@ -11,3 +11,5 @@ resources:
   - servicetemplate-windows-vm.yaml
   - servicetemplate-nexus.yaml
   - servicetemplate-gitea-mirror.yaml
+  - servicetemplate-gitea.yaml
+  - servicetemplate-ohdsi.yaml

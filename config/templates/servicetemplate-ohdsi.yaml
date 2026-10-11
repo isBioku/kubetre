@@ -1,0 +1,27 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: ohdsi
+spec:
+  # AzureTRE's OHDSI workspace service: Atlas and WebAPI, reached from the workspace's VMs.
+  kind: WorkspaceService
+  displayName: OHDSI Atlas
+  description: OHDSI Atlas and WebAPI for cohort definition and analysis on OMOP CDM data. Opened in a browser on the workspace's machines.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  chart:
+    url: oci://registry.example.org/charts/ohdsi
+    version: 0.1.0
+    provider: azure
+  values:
+    images:
+      atlas: {repository: registry.example.org/ohdsi/atlas, tag: "2.15.0"}
+      webapi: {repository: registry.example.org/ohdsi/webapi, tag: "2.15.2"}
+      postgres: {repository: registry.example.org/library/postgres, tag: "16.15"}
+      proxy: {repository: registry.example.org/nginxinc/nginx-unprivileged, tag: "1.29.2-alpine"}
+  valuesSchema:
+    type: object
+    properties:
+      databaseStorageGi: {type: integer, title: WebAPI database storage (GiB), minimum: 5, maximum: 500, default: 20}
+      webapiMemoryGi: {type: integer, title: WebAPI memory (GiB), enum: [2, 4, 8], default: 2, updateable: true}
+    additionalProperties: false

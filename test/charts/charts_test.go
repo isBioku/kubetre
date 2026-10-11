@@ -235,7 +235,7 @@ func TestSharedServiceChartsPassRestrictedPodSecurity(t *testing.T) {
 	}}, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	for _, chart := range []string{"nexus-mirror", "gitea-mirror"} {
+	for _, chart := range []string{"nexus-mirror", "gitea"} {
 		pods := 0
 		for _, d := range render(t, chart, "kubetre.service=svc") {
 			var spec *corev1.PodSpec
@@ -263,6 +263,77 @@ func TestSharedServiceChartsPassRestrictedPodSecurity(t *testing.T) {
 		}
 		if pods != 2 {
 			t.Errorf("%s: expected a deployment and a setup job, found %d pods", chart, pods)
+		}
+	}
+}
+
+// Workspace web services pass restricted Pod Security, put their load balancer in the
+// workspace's VM subnet, and expose to VMs only their front end.
+func TestWorkspaceWebServiceCharts(t *testing.T) {
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		t.Skip("KUBEBUILDER_ASSETS not set; run `make test`")
+	}
+	env := &envtest.Environment{}
+	cfg, err := env.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = env.Stop() }()
+	cs := kubernetes.NewForConfigOrDie(cfg)
+	ctx := context.Background()
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name: "ws-chk", Labels: map[string]string{"pod-security.kubernetes.io/enforce": "restricted"},
+	}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for chart, want := range map[string]struct {
+		sets    []string
+		exposed []string // names of deployments VMs may reach
+		pods    int
+	}{
+		"gitea": {[]string{"mode=workspace"}, []string{"test"}, 1},
+		"ohdsi": {nil, []string{"test-proxy"}, 4},
+	} {
+		sets := append([]string{"kubetre.service=svc", "kubetre.vmSubnet=snet-ws-chk"}, want.sets...)
+		pods, lbs := 0, 0
+		var exposed []string
+		for _, d := range render(t, chart, sets...) {
+			switch {
+			case strings.Contains(string(d), "kind: Deployment"):
+				dep := &appsv1.Deployment{}
+				if err := yaml.UnmarshalStrict(d, dep); err != nil {
+					t.Fatalf("%s: deployment does not decode strictly: %v", chart, err)
+				}
+				pods++
+				if dep.Spec.Template.Labels["kubetre.io/vm-access"] == "true" {
+					exposed = append(exposed, dep.Name)
+				}
+				pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{GenerateName: chart + "-"}, Spec: dep.Spec.Template.Spec}
+				if _, err := cs.CoreV1().Pods("ws-chk").Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+					t.Errorf("%s: %s rejected under restricted Pod Security: %v", chart, dep.Name, err)
+				}
+			case strings.Contains(string(d), "kind: Job"):
+				t.Errorf("%s: unexpected job in workspace mode", chart)
+			case strings.Contains(string(d), "kind: Service\n"):
+				svc := &corev1.Service{}
+				if err := yaml.UnmarshalStrict(d, svc); err != nil {
+					t.Fatal(err)
+				}
+				if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
+					continue
+				}
+				lbs++
+				if svc.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] != "true" ||
+					svc.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal-subnet"] != "snet-ws-chk" {
+					t.Errorf("%s: load balancer annotations = %v", chart, svc.Annotations)
+				}
+				if svc.Labels["kubetre.io/service"] != "svc" {
+					t.Errorf("%s: load balancer must carry the service label for the API", chart)
+				}
+			}
+		}
+		if pods != want.pods || lbs != 1 || strings.Join(exposed, ",") != strings.Join(want.exposed, ",") {
+			t.Errorf("%s: %d pods, %d load balancers, exposed %v", chart, pods, lbs, exposed)
 		}
 	}
 }

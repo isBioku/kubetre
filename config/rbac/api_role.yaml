@@ -1,4 +1,5 @@
 # The API reads templates and manages KubeTRE objects; it never touches namespaces or workloads.
+# It reads Services only to report the addresses where workspaces reach their services.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -17,3 +18,6 @@ rules:
   - apiGroups: ["kubetre.io"]
     resources: ["airlockrequests/status"]
     verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]

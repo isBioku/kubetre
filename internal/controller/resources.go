@@ -71,6 +71,13 @@ func defaultLimits() []corev1.LimitRangeItem {
 
 // desiredNetworkPolicies returns the baseline policies for a workspace namespace.
 // The model is default-deny: only traffic listed here, or in the FQDN egress policy, flows.
+// VMSubnetName is the Azure subnet of a workspace's virtual machines (crossplane/azure).
+func VMSubnetName(workspace string) string { return "snet-ws-" + workspace }
+
+// LabelVMAccess marks pods that the workspace's virtual machines may reach, through an
+// internal load balancer in the workspace's subnet: web services such as Gitea or OHDSI.
+const LabelVMAccess = "kubetre.io/vm-access"
+
 func desiredNetworkPolicies(ws *treV1.Workspace) []networkingv1.NetworkPolicy {
 	ns := NamespaceFor(ws)
 	all := metav1.LabelSelector{}
@@ -137,7 +144,27 @@ func desiredNetworkPolicies(ws *treV1.Workspace) []networkingv1.NetworkPolicy {
 				}},
 			},
 		},
+		{
+			// The workspace's own VMs reach its web services, and only those pods. Other
+			// workspaces' VMs are outside this address range.
+			ObjectMeta: meta("kubetre-allow-from-vms"),
+			Spec: networkingv1.NetworkPolicySpec{
+				PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{LabelVMAccess: "true"}},
+				PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+				Ingress:     vmIngress(ws),
+			},
+		},
 	}
+}
+
+// vmIngress admits the workspace's VM subnet, or nothing when the workspace has no VMs.
+func vmIngress(ws *treV1.Workspace) []networkingv1.NetworkPolicyIngressRule {
+	if ws.Status.VMNetwork == nil || ws.Status.VMNetwork.AddressPrefix == "" {
+		return nil
+	}
+	return []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{{
+		IPBlock: &networkingv1.IPBlock{CIDR: ws.Status.VMNetwork.AddressPrefix},
+	}}}}
 }
 
 // AllowedFQDNs merges the template and workspace allowlists, sorted and de-duplicated.

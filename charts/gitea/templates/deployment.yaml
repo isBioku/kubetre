@@ -8,10 +8,10 @@ spec:
   replicas: 1
   strategy: {type: Recreate}
   selector:
-    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: gitea-mirror}
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: gitea}
   template:
     metadata:
-      labels: {{- include "gitea.labels" . | nindent 8 }}
+      labels: {{- include "gitea.podLabels" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false

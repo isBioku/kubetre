@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gitea
+description: Gitea for KubeTRE. A read-only source mirror shared by every workspace, or a workspace's own Git server that its VMs reach.
+type: application
+version: 0.2.0
+appVersion: "28.1.0"

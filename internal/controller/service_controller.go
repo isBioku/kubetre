@@ -103,15 +103,21 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			required, enforced.OrDefault()), 0)
 	}
 
-	if tmpl.Spec.RequiresVirtualMachines {
+	// Services in a workspace with virtual machines learn its subnet, so they can offer an
+	// internal load balancer or private endpoint that the workspace's VMs reach.
+	vmSubnet := ""
+	if !shared {
 		ws := &treV1.Workspace{}
 		if err := r.Get(ctx, types.NamespacedName{Name: workspace}, ws); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
-		if ws.Status.VMNetwork == nil {
-			return fail("VirtualMachinesNotEnabled",
-				"this service creates virtual machines; use a workspace template that enables them", time.Minute)
+		if ws.Status.VMNetwork != nil {
+			vmSubnet = VMSubnetName(ws.Name)
 		}
+	}
+	if tmpl.Spec.RequiresVirtualMachines && vmSubnet == "" {
+		return fail("VirtualMachinesNotEnabled",
+			"this service needs a workspace with virtual machines; use a workspace template that enables them", time.Minute)
 	}
 
 	// A template without a chart only groups user resources (for example virtual desktops):
@@ -129,7 +135,7 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	values, err := mergedValues(tmpl, svc, workspace, enforced.OrDefault())
+	values, err := mergedValues(tmpl, svc, workspace, vmSubnet, enforced.OrDefault())
 	if err != nil {
 		return fail("InvalidValues", err.Error(), 0)
 	}
@@ -164,7 +170,7 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 // mergedValues layers admin values, then user values, then KubeTRE's own values.
 // The "kubetre" key is always KubeTRE's, so users cannot spoof the owner or workspace.
-func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, workspace string, level treV1.PodSecurityLevel) (map[string]any, error) {
+func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, workspace, vmSubnet string, level treV1.PodSecurityLevel) (map[string]any, error) {
 	out := map[string]any{}
 	for _, src := range []*struct {
 		name string
@@ -184,6 +190,7 @@ func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, work
 		"service":     svc.Name,
 		"owner":       svc.Spec.Owner,
 		"podSecurity": string(level),
+		"vmSubnet":    vmSubnet,
 	}
 	return out, nil
 }

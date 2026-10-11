@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,6 +44,14 @@ func TestVMWorkspacesGetDistinctSubnetsAndWaitForNetwork(t *testing.T) {
 	one, two := getWS(t, "vm-one").Status.VMNetwork, getWS(t, "vm-two").Status.VMNetwork
 	if one.AddressPrefix == two.AddressPrefix || one.FirewallPriority == two.FirewallPriority {
 		t.Fatalf("allocations collide: %+v %+v", one, two)
+	}
+
+	// The workspace's VMs reach only pods marked for them, before the network is even ready.
+	np := &networkingv1.NetworkPolicy{}
+	must(t, k8s.Get(ctx, types.NamespacedName{Namespace: "ws-vm-one", Name: "kubetre-allow-from-vms"}, np))
+	if len(np.Spec.Ingress) != 1 || np.Spec.Ingress[0].From[0].IPBlock.CIDR != one.AddressPrefix ||
+		np.Spec.PodSelector.MatchLabels[LabelVMAccess] != "true" {
+		t.Fatalf("VM ingress policy = %+v", np.Spec)
 	}
 
 	params, _, _ := unstructured.NestedMap(getNetwork(t, "vm-one").Object, "spec", "parameters")

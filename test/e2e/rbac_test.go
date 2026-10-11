@@ -53,7 +53,6 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	}
 	applyYAML(t, admin, filepath.Join(root, "config", "rbac", "api_role.yaml"))
 	applyYAML(t, admin, filepath.Join(root, "config", "rbac", "bindings.yaml"))
-	applyYAML(t, admin, filepath.Join(root, "config", "shared", "api-rbac.yaml"))
 	for _, f := range []string{"workspacetemplate-vm.yaml", "servicetemplate-virtual-desktops.yaml", "servicetemplate-windows-vm.yaml", "servicetemplate-nexus.yaml"} {
 		applyYAML(t, admin, filepath.Join(root, "config", "templates", f))
 	}

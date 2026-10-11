@@ -21,7 +21,10 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 | Base workspace | Workspace | [Base workspace](workspaces/base.md) |
 | Workspace with virtual machines | Workspace | [Workspace with virtual machines](workspaces/vm-workspace.md) |
 | Unrestricted workspace | Workspace | [Unrestricted workspace](workspaces/unrestricted.md) |
+| Airlock Import Review workspace | Workspace | [Airlock Import Review](workspaces/airlock-import-review.md) |
 | Virtual Desktops | Workspace service | [Virtual Desktops](workspace-services/virtual-desktops.md) |
+| Gitea | Workspace service | [Gitea](workspace-services/gitea.md) |
+| OHDSI Atlas | Workspace service | [OHDSI Atlas](workspace-services/ohdsi.md) |
 | Windows VM (Windows Server 2022) | User resource | [Windows VM](user-resources/windows-vm.md) |
 | Linux VM (Ubuntu 24.04) | User resource | [Linux VM](user-resources/linux-vm.md) |
 | Linux desktop | User resource | [Linux desktop](user-resources/linux-desktop.md) |
@@ -34,9 +37,8 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 AzureTRE ships many more templates. KubeTRE has no equivalent yet for these, so they do not
 appear in the UI:
 
-- **Workspace services:** Azure ML, Azure Databricks, Gitea, Health Services, OHDSI, MySQL,
-  Azure SQL, Azure OpenAI.
+- **Workspace services:** Azure ML, Azure Databricks, Health Services, MySQL, Azure SQL,
+  Azure OpenAI.
 - **Shared services:** CycleCloud.
-- **User resources:** import and export review VMs.
 
 To add your own, see [Authoring templates](../developers/authoring-templates.md).

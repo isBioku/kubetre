@@ -78,10 +78,11 @@ acr-build-images:
 # Third-party images and charts copied into ACR so the cluster never pulls from Docker Hub.
 MIRROR := guacamole/guacamole:1.6.0 guacamole/guacd:1.6.0 envoyproxy/gateway:v1.9.2 \
           envoyproxy/envoy:distroless-v1.39.1 envoyproxy/gateway-helm:v1.9.2 \
-          sonatype/nexus3:3.96.4 gitea/gitea:28.1.0-rootless curlimages/curl:8.22.0
+          sonatype/nexus3:3.96.4 gitea/gitea:28.1.0-rootless curlimages/curl:8.22.0 \
+          ohdsi/atlas:2.15.0 ohdsi/webapi:2.15.2 library/postgres:16.15 nginxinc/nginx-unprivileged:1.29.2-alpine
 
 .PHONY: acr-mirror
-acr-mirror: ## Import third-party images (gateway, mirrors) and the Envoy Gateway chart into ACR
+acr-mirror: ## Import third-party images (gateway, mirrors, OHDSI) and the Envoy Gateway chart into ACR
 	for ref in $(MIRROR); do az acr import --name $(ACR_NAME) --source docker.io/$$ref --image $$ref --force; done
 
 # KubeVirt, CDI and the Ubuntu VM disk, for environments with kubevirt_enabled. Keep the

@@ -1,6 +1,6 @@
 # Gitea (source mirror)
 
-**Template name:** `gitea-mirror` · **Kind:** shared service · **Chart:** `charts/gitea-mirror`
+**Template name:** `gitea-mirror` · **Kind:** shared service · **Chart:** `charts/gitea`
 
 Read-only mirrors of public Git repositories for the whole TRE, the counterpart of AzureTRE's
 Gitea shared service. Researchers clone from the mirror; nothing can be pushed out through it.

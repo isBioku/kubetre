@@ -1,0 +1,70 @@
+{{- /* WebAPI's own database: cohort definitions, concept sets and job history. Research data
+  (OMOP CDM) lives elsewhere and is added as a source in Atlas. */ -}}
+{{- $name := printf "%s-db" (include "ohdsi.name" .) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ printf "%dGi" (int .Values.databaseStorageGi) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{- include "ohdsi.selector" (dict "root" . "component" "database") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ohdsi.labels" . | nindent 8 }}
+        app.kubernetes.io/name: database
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "ohdsi.podSecurity" (dict "uid" 999) | nindent 8 }}
+      containers:
+        - name: postgres
+          image: "{{ .Values.images.postgres.repository }}:{{ .Values.images.postgres.tag }}"
+          env:
+            - {name: POSTGRES_DB, value: ohdsi}
+            - {name: POSTGRES_USER, value: ohdsi}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $name }}, key: password}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{name: postgres, containerPort: 5432}]
+          readinessProbe: {exec: {command: [pg_isready, -U, ohdsi, -d, ohdsi]}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          securityContext: {{- include "ohdsi.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: run, mountPath: /var/run/postgresql}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: {{ $name }}}
+        - {name: run, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "ohdsi.selector" (dict "root" . "component" "database") | nindent 4 }}
+  ports:
+    - {name: postgres, port: 5432, targetPort: postgres}

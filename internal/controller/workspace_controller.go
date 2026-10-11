@@ -131,6 +131,13 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 		r.setCondition(ws, treV1.ConditionVMNetwork, ready, reason, msg)
+		// The subnet may have just been allocated: let its VMs reach the workspace's web services.
+		if ws.Status.VMNetwork != nil {
+			if err := r.reconcileNetworkPolicies(ctx, ws); err != nil {
+				_ = r.writeStatus(ctx, ws, original)
+				return ctrl.Result{}, err
+			}
+		}
 		if !ready {
 			ws.Status.Phase = treV1.PhasePending
 			if reason == "VMPoolNotConfigured" || reason == "VMPoolExhausted" {

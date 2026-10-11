@@ -1,3 +1,7 @@
+# mirror: read-only mirrors shared by every workspace. workspace: a workspace's own Git server,
+# reached by its VMs through an internal load balancer in the workspace's subnet.
+mode: mirror
+
 # Set by the ServiceTemplate (administrator).
 image:
   repository: registry.example.org/gitea/gitea
@@ -19,9 +23,14 @@ mirrors: []
 #  - {name: scikit-learn, url: "https://github.com/scikit-learn/scikit-learn.git"}
 mirrorInterval: 8h
 
+# Workspace mode: hosts that members may import repositories from, for example the shared
+# Gitea mirror. Empty allows any host the workspace can reach.
+migrationDomains: ""
+
 # Set by KubeTRE; do not set by hand.
 kubetre:
   workspace: ""
   service: ""
   owner: ""
   podSecurity: restricted
+  vmSubnet: ""

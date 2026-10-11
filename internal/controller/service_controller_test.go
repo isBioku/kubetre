@@ -195,3 +195,17 @@ func TestSharedServicesStayInTheSharedNamespace(t *testing.T) {
 	create(ns, "mirror", "mirror")
 	eventually(t, "shared template refused in a workspace", func() bool { return svcReason(t, ns, "mirror") == "SharedServiceInWorkspace" })
 }
+
+func TestServicesLearnTheWorkspaceVMSubnet(t *testing.T) {
+	tmpl := serviceTemplate("web", treV1.PodSecurityRestricted)
+	svc := &treV1.WorkspaceService{Spec: treV1.WorkspaceServiceSpec{Owner: "rita@example.com",
+		Values: &apiextensionsv1.JSON{Raw: []byte(`{"kubetre":{"vmSubnet":"spoofed"}}`)}}}
+	svc.Name = "gitea"
+	got, err := mergedValues(tmpl, svc, "study1", VMSubnetName("study1"), treV1.PodSecurityRestricted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kt := got["kubetre"].(map[string]any); kt["vmSubnet"] != "snet-ws-study1" || kt["workspace"] != "study1" {
+		t.Fatalf("kubetre values = %v", kt)
+	}
+}

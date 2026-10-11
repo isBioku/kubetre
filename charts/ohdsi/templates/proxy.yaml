@@ -1,0 +1,73 @@
+{{- /* One address for Atlas and WebAPI, so Atlas can find WebAPI wherever it is served from.
+  It is the only part the workspace's VMs reach. */ -}}
+{{- $name := include "ohdsi.name" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-proxy
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      client_max_body_size 50m;
+      location = / { return 302 /atlas/; }
+      location /atlas/ { proxy_pass http://{{ $name }}-atlas:8080; }
+      location /WebAPI/ {
+        proxy_pass http://{{ $name }}-webapi:8080;
+        proxy_read_timeout 300s;
+      }
+      location = /healthz { return 200 "ok"; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-proxy
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "ohdsi.selector" (dict "root" . "component" "proxy") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ohdsi.labels" . | nindent 8 }}
+        app.kubernetes.io/name: proxy
+        kubetre.io/vm-access: "true"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "ohdsi.podSecurity" (dict "uid" 101) | nindent 8 }}
+      containers:
+        - name: proxy
+          image: "{{ .Values.images.proxy.repository }}:{{ .Values.images.proxy.tag }}"
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 500m, memory: 64Mi}
+          securityContext: {{- include "ohdsi.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/conf.d}
+      volumes:
+        - name: config
+          configMap: {name: {{ $name }}-proxy}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    {{- with .Values.kubetre.vmSubnet }}
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: {{ . | quote }}
+    {{- end }}
+    kubetre.io/url-path: /atlas/
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector: {{- include "ohdsi.selector" (dict "root" . "component" "proxy") | nindent 4 }}
+  ports:
+    - {name: http, port: 80, targetPort: http}

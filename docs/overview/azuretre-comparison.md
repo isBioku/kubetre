@@ -36,8 +36,8 @@ KubeTRE keeps what users see and replaces what operators run.
 ## Not available yet
 
 - **Shared services:** CycleCloud and certificates. The Nexus and Gitea mirrors are available.
-- **Workspace services:** Azure ML, Databricks, Gitea, Health Data Services, OHDSI, MySQL,
-  Azure SQL and Azure OpenAI.
+- **Workspace services:** Azure ML, Databricks, Health Data Services, MySQL, Azure SQL and
+  Azure OpenAI.
 - **Costs and power:** cost reporting, start and stop for the TRE and for VMs, and VM
   password reset.
 - **Lifecycle:** template version upgrades of existing resources, resource history, pipeline

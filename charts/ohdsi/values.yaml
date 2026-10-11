@@ -1,0 +1,19 @@
+# Set by the ServiceTemplate (administrator).
+images:
+  atlas: {repository: registry.example.org/ohdsi/atlas, tag: "2.15.0"}
+  webapi: {repository: registry.example.org/ohdsi/webapi, tag: "2.15.2"}
+  postgres: {repository: registry.example.org/library/postgres, tag: "16.15"}
+  proxy: {repository: registry.example.org/nginxinc/nginx-unprivileged, tag: "1.29.2-alpine"}
+storageClassName: ""
+
+# Chosen by the workspace owner.
+databaseStorageGi: 20
+webapiMemoryGi: 2
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted
+  vmSubnet: ""

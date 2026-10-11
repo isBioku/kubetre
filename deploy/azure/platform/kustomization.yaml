@@ -36,9 +36,21 @@ patches:
       - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/sonatype/nexus3"}
       - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
       - {op: replace, path: /spec/values/service, value: {loadBalancerIP: "${NEXUS_ILB_IP}", subnet: "${ILB_SUBNET_NAME}"}}
+  - target: {kind: ServiceTemplate, name: gitea}
+    patch: |
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/gitea"}
+      - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/gitea/gitea"}
+      - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
+  - target: {kind: ServiceTemplate, name: ohdsi}
+    patch: |
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/ohdsi"}
+      - {op: replace, path: /spec/values/images/atlas/repository, value: "${ACR_LOGIN_SERVER}/ohdsi/atlas"}
+      - {op: replace, path: /spec/values/images/webapi/repository, value: "${ACR_LOGIN_SERVER}/ohdsi/webapi"}
+      - {op: replace, path: /spec/values/images/postgres/repository, value: "${ACR_LOGIN_SERVER}/library/postgres"}
+      - {op: replace, path: /spec/values/images/proxy/repository, value: "${ACR_LOGIN_SERVER}/nginxinc/nginx-unprivileged"}
   - target: {kind: ServiceTemplate, name: gitea-mirror}
     patch: |
-      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/gitea-mirror"}
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/gitea"}
       - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/gitea/gitea"}
       - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
       - {op: replace, path: /spec/values/service, value: {loadBalancerIP: "${GITEA_ILB_IP}", subnet: "${ILB_SUBNET_NAME}"}}

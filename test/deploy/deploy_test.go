@@ -288,8 +288,8 @@ func TestTemplatesUseTheEnvironmentRegistry(t *testing.T) {
 			t.Errorf("ServiceTemplate %s chart url = %s", u.GetName(), url)
 		}
 	}
-	if n != 6 {
-		t.Fatalf("expected 6 ServiceTemplates in the platform stage, found %d", n)
+	if n != 8 {
+		t.Fatalf("expected 8 ServiceTemplates in the platform stage, found %d", n)
 	}
 }
 

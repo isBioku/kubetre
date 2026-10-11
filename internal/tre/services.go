@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ var serviceSystemProps = map[string]bool{"display_name": true, "description": tr
 
 // Service properties KubeTRE derives and returns, never accepted as input.
 var serviceDerivedProps = map[string]bool{"connection_uri": true, "is_exposed_externally": true, "owner_id": true,
-	access.VMUsernameValue: true, access.AirlockRequestURLValue: true}
+	access.VMUsernameValue: true, access.AirlockRequestURLValue: true, "private_ip": true}
 
 func servicePath(ws, svc string) string { return workspacePath(ws) + "/workspace-services/" + svc }
 
@@ -141,10 +142,15 @@ func (s *Server) listWorkspaceServices(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	tmpls := s.serviceTemplates(r)
+	eps := s.serviceEndpoints(r, controller.NamespaceFor(ws))
 	out := []resource{}
 	for i := range items {
 		if items[i].Spec.ParentService == "" {
-			out = append(out, s.serviceJSON(ws, &items[i], tmpls[items[i].Spec.TemplateRef]))
+			res := s.serviceJSON(ws, &items[i], tmpls[items[i].Spec.TemplateRef])
+			for k, v := range eps[items[i].Name] {
+				res.Properties[k] = v
+			}
+			out = append(out, res)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"workspaceServices": out})
@@ -159,7 +165,11 @@ func (s *Server) getWorkspaceService(w http.ResponseWriter, r *http.Request, id 
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"workspaceService": s.serviceJSON(ws, svc, s.serviceTemplates(r)[svc.Spec.TemplateRef])})
+	res := s.serviceJSON(ws, svc, s.serviceTemplates(r)[svc.Spec.TemplateRef])
+	for k, v := range s.serviceEndpoints(r, svc.Namespace)[svc.Name] {
+		res.Properties[k] = v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workspaceService": res})
 }
 
 func (s *Server) createWorkspaceService(w http.ResponseWriter, r *http.Request, id access.Identity) {
@@ -508,4 +518,34 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request, id access.Identi
 	s.logger().Info("resource deletion requested", "type", kind, "name", svc.Name, "by", id.Principal())
 	writeJSON(w, http.StatusAccepted, map[string]any{"operation": newOperation(uid, actionUninstall, svc.Generation, path,
 		svc.Name, kind, svc.Spec.TemplateRef, "deleting", "", id, s.now())})
+}
+
+// serviceEndpoints reports, for each workspace service with an internal load balancer, where
+// the workspace's VMs reach it. The UI shows such addresses as internal: they open only from
+// inside the workspace.
+func (s *Server) serviceEndpoints(r *http.Request, ns string) map[string]map[string]any {
+	out := map[string]map[string]any{}
+	list := &corev1.ServiceList{}
+	if err := s.Client.List(r.Context(), list, client.InNamespace(ns), client.HasLabels{"kubetre.io/service"}); err != nil {
+		return out
+	}
+	for _, svc := range list.Items {
+		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer || len(svc.Spec.Ports) == 0 {
+			continue
+		}
+		for _, ing := range svc.Status.LoadBalancer.Ingress {
+			if ing.IP == "" {
+				continue
+			}
+			host := ing.IP
+			if p := svc.Spec.Ports[0].Port; p != 80 {
+				host = fmt.Sprintf("%s:%d", ing.IP, p)
+			}
+			out[svc.Labels["kubetre.io/service"]] = map[string]any{
+				"connection_uri":        "http://" + host + svc.Annotations["kubetre.io/url-path"],
+				"is_exposed_externally": false, "private_ip": ing.IP,
+			}
+		}
+	}
+	return out
 }

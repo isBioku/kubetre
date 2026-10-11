@@ -8,8 +8,8 @@ spec:
   description: Read-only mirrors of public Git repositories, shared by every workspace. Researchers clone from the mirror; nothing can be pushed out.
   requiredPodSecurity: restricted
   chart:
-    url: oci://registry.example.org/charts/gitea-mirror
-    version: 0.1.0
+    url: oci://registry.example.org/charts/gitea
+    version: 0.2.0
     provider: azure
   values:
     image: {repository: registry.example.org/gitea/gitea, tag: "28.1.0-rootless"}

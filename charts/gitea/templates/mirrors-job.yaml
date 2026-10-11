@@ -1,5 +1,6 @@
 {{- /* Creates a read-only pull mirror for each listed repository. Existing mirrors are left
   alone; removing one from the list does not delete it. */ -}}
+{{- if not (include "gitea.workspace" .) }}
 {{- $name := include "gitea.name" . -}}
 apiVersion: batch/v1
 kind: Job
@@ -48,3 +49,4 @@ spec:
             requests: {cpu: 10m, memory: 16Mi}
             limits: {cpu: 100m, memory: 64Mi}
           securityContext: {{- include "gitea.containerSecurity" . | nindent 12 }}
+{{- end }}

@@ -73,6 +73,10 @@ For workspaces with virtual machines, Crossplane creates a subnet and a network 
 | Outbound | `deny-virtual-network-out` | nothing else in the VNet, including other workspaces |
 | Outbound | `deny-all-out` | nothing else |
 
+The subnet also holds the internal load balancers of the workspace's web services, such as
+Gitea and OHDSI Atlas, which its machines reach under `allow-same-subnet-out`. In the cluster,
+a network policy admits the subnet only to those services' front-end pods.
+
 The firewall then narrows outbound HTTPS to the workspace's allowed domains. In AzureTRE the
 equivalent inbound rule admits Azure Bastion; in KubeTRE it admits guacd, which runs only on
 the gateway pool.

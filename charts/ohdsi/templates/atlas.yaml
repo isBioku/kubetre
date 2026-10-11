@@ -1,0 +1,43 @@
+{{- $name := printf "%s-atlas" (include "ohdsi.name" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "ohdsi.selector" (dict "root" . "component" "atlas") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ohdsi.labels" . | nindent 8 }}
+        app.kubernetes.io/name: atlas
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "ohdsi.podSecurity" (dict "uid" 101) | nindent 8 }}
+      containers:
+        - name: atlas
+          image: "{{ .Values.images.atlas.repository }}:{{ .Values.images.atlas.tag }}"
+          env:
+            # WebAPI is served from the same address as Atlas, which Azure chooses.
+            - {name: USE_DYNAMIC_WEBAPI_URL, value: "true"}
+            - {name: DYNAMIC_WEBAPI_SUFFIX, value: /WebAPI/}
+            - {name: ATLAS_INSTANCE_NAME, value: {{ .Values.kubetre.workspace | default "OHDSI" | quote }}}
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /atlas/, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          securityContext: {{- include "ohdsi.containerSecurity" . | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "ohdsi.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "ohdsi.selector" (dict "root" . "component" "atlas") | nindent 4 }}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
