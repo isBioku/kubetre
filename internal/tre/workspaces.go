@@ -111,7 +111,23 @@ func (s *Server) loadWorkspace(w http.ResponseWriter, r *http.Request, id access
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return nil, nil, false
 	}
+	s.recordMemberID(r, ws, id)
 	return ws, roles, true
+}
+
+// recordMemberID notes a member's Entra object ID on the workspace the first time they use it,
+// so its cloud services can grant them roles. Membership lists hold email addresses only.
+func (s *Server) recordMemberID(r *http.Request, ws *treV1.Workspace, id access.Identity) {
+	email := strings.ToLower(id.Email)
+	if email == "" || id.ObjectID == "" || ws.Status.MemberIDs[email] == id.ObjectID || !access.IsMember(ws, id) {
+		return
+	}
+	patch, _ := json.Marshal(map[string]any{"status": map[string]any{"memberIDs": map[string]string{email: id.ObjectID}}})
+	if err := s.Client.Status().Patch(r.Context(), ws, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		s.logger().Warn("could not record member object ID", "workspace", ws.Name, "error", err)
+		return
+	}
+	s.logger().Info("recorded member object ID", "workspace", ws.Name, "member", email)
 }
 
 func (s *Server) listWorkspaces(w http.ResponseWriter, r *http.Request, id access.Identity) {
@@ -126,6 +142,7 @@ func (s *Server) listWorkspaces(w http.ResponseWriter, r *http.Request, id acces
 	for i := range list.Items {
 		ws := &list.Items[i]
 		if admin || access.IsMember(ws, id) {
+			s.recordMemberID(r, ws, id)
 			out = append(out, s.workspaceJSON(ws, versions[ws.Spec.TemplateRef], id))
 		}
 	}

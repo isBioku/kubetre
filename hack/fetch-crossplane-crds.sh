@@ -15,10 +15,11 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 
 fetch() { # repo tag dest files...
   local repo=$1 tag=$2 dest=$3; shift 3
-  git clone -q --depth 1 --branch "$tag" --filter=blob:none --sparse "https://github.com/$repo.git" "$tmp/$repo"
-  (cd "$tmp/$repo" && git sparse-checkout set --no-cone "${@/#//}")
+  local dir="$tmp/$dest/${repo##*/}"
+  git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" --filter=blob:none --sparse "https://github.com/$repo.git" "$dir"
+  (cd "$dir" && git sparse-checkout set --no-cone "${@/#//}")
   mkdir -p "$out/$dest"
-  for f in "$@"; do cp "$tmp/$repo/$f" "$out/$dest/"; done
+  for f in "$@"; do cp "$dir/$f" "$out/$dest/"; done
 }
 
 fetch crossplane/crossplane "$CROSSPLANE" crossplane \
@@ -40,6 +41,25 @@ fetch crossplane-contrib/provider-upjet-azure "$PROVIDER" provider-azure \
   $p/network.azure.m.upbound.io_subnetnetworksecuritygroupassociations.yaml \
   $p/network.azure.m.upbound.io_subnetroutetableassociations.yaml \
   $p/network.azure.m.upbound.io_subnets.yaml
+# The optional PaaS workspace services (crossplane/paas).
+fetch crossplane-contrib/provider-upjet-azure "$PROVIDER" provider-azure-paas \
+  $p/network.azure.m.upbound.io_privateendpoints.yaml \
+  $p/authorization.azure.m.upbound.io_roleassignments.yaml \
+  $p/dbformysql.azure.m.upbound.io_flexibleservers.yaml \
+  $p/dbformysql.azure.m.upbound.io_flexibledatabases.yaml \
+  $p/sql.azure.m.upbound.io_mssqlservers.yaml \
+  $p/sql.azure.m.upbound.io_mssqldatabases.yaml \
+  $p/cognitiveservices.azure.m.upbound.io_accounts.yaml \
+  $p/cognitiveservices.azure.m.upbound.io_deployments.yaml \
+  $p/healthcareapis.azure.m.upbound.io_healthcareworkspaces.yaml \
+  $p/healthcareapis.azure.m.upbound.io_healthcarefhirservices.yaml \
+  $p/healthcareapis.azure.m.upbound.io_healthcaredicomservices.yaml \
+  $p/machinelearningservices.azure.m.upbound.io_workspaces.yaml \
+  $p/machinelearningservices.azure.m.upbound.io_computeinstances.yaml \
+  $p/storage.azure.m.upbound.io_accounts.yaml \
+  $p/keyvault.azure.m.upbound.io_vaults.yaml \
+  $p/insights.azure.m.upbound.io_applicationinsights.yaml \
+  $p/databricks.azure.m.upbound.io_workspaces.yaml
 fetch crossplane-contrib/function-go-templating "$GOTEMPLATING" functions package/input/gotemplating.fn.crossplane.io_gotemplates.yaml
 fetch crossplane-contrib/function-environment-configs "$ENVCONFIGS" functions package/input/environmentconfigs.fn.crossplane.io_inputs.yaml
 # Flux: the CRDs KubeTRE's controller and deploy tree write.

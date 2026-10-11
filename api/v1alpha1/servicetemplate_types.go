@@ -96,6 +96,20 @@ type ServiceTemplateSpec struct {
 	// by the chart value "username". KubeTRE sets it from the owner's email at creation.
 	// +optional
 	OwnerAccount bool `json:"ownerAccount,omitempty"`
+
+	// AllowedFQDNs are hostnames this service's workspace may reach on HTTPS while the service
+	// exists, added to the workspace's own list. For example, sign-in for a cloud service that
+	// users open from the workspace's machines.
+	// +optional
+	AllowedFQDNs []string `json:"allowedFQDNs,omitempty"`
+
+	// Subnets is how many extra subnets, each the size of a workspace VM subnet, the service
+	// needs in the workspace's network, for example for Azure Databricks. They are allocated
+	// from the VM address pool and passed to the chart as kubetre.subnets.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=2
+	Subnets int32 `json:"subnets,omitempty"`
 }
 
 // +kubebuilder:object:root=true

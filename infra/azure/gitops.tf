@@ -69,6 +69,9 @@ locals {
     GITEA_ILB_IP             = local.gitea_ilb_ip
     MIRROR_UPSTREAM_FQDNS    = jsonencode([for f in var.mirror_upstream_fqdns : { matchName = f }])
     TRE_ID                   = var.name
+    VNET_ID                  = azurerm_virtual_network.this.id
+    LOG_ANALYTICS_ID         = azurerm_log_analytics_workspace.this.id
+    PRIVATE_DNS_ZONE_IDS     = jsonencode(local.paas_private_dns_zone_ids)
     GATEWAY_ILB_IP           = local.gateway_ilb_ip
     ILB_SUBNET_NAME          = azurerm_subnet.shared_ilb.name
     VM_SIZE_SMALL            = var.research_vm_sizes.small
@@ -146,6 +149,20 @@ resource "azurerm_kubernetes_flux_configuration" "kubetre" {
       name                      = "kubevirt"
       path                      = "${var.gitops_path}/kubevirt"
       depends_on                = ["platform"]
+      retry_interval_in_seconds = 60
+      post_build {
+        substitute = local.gitops_substitutions
+      }
+    }
+  }
+
+  # Azure PaaS workspace services, only when enabled.
+  dynamic "kustomizations" {
+    for_each = var.paas_services_enabled ? ["paas"] : []
+    content {
+      name                      = "paas"
+      path                      = "${var.gitops_path}/paas"
+      depends_on                = ["crossplane-packages", "platform"]
       retry_interval_in_seconds = 60
       post_build {
         substitute = local.gitops_substitutions

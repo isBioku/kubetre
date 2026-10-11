@@ -11,6 +11,10 @@ rules:
   - apiGroups: ["kubetre.io"]
     resources: ["workspaces", "workspaceservices"]
     verbs: ["get", "list", "watch", "create", "update", "delete"]
+  # Members' Entra object IDs, recorded as they use the TRE.
+  - apiGroups: ["kubetre.io"]
+    resources: ["workspaces/status"]
+    verbs: ["patch"]
   # Airlock requests: the API records what users do; the controller moves the data.
   - apiGroups: ["kubetre.io"]
     resources: ["airlockrequests"]

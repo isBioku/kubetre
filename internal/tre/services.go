@@ -24,7 +24,7 @@ var serviceSystemProps = map[string]bool{"display_name": true, "description": tr
 
 // Service properties KubeTRE derives and returns, never accepted as input.
 var serviceDerivedProps = map[string]bool{"connection_uri": true, "is_exposed_externally": true, "owner_id": true,
-	access.VMUsernameValue: true, access.AirlockRequestURLValue: true, "private_ip": true}
+	access.VMUsernameValue: true, access.AirlockRequestURLValue: true, "private_ip": true, "address": true}
 
 func servicePath(ws, svc string) string { return workspacePath(ws) + "/workspace-services/" + svc }
 
@@ -40,8 +40,14 @@ func canSeeUserResource(roles map[string]bool, admin bool, id access.Identity, u
 
 func (s *Server) serviceJSON(ws *treV1.Workspace, svc *treV1.WorkspaceService, tmpl *treV1.ServiceTemplate) resource {
 	props := rawMap(rawOf(svc.Spec.Values))
-	// A review VM's data link is a credential; it is for the VM, not for display.
+	// A review VM's data link is a credential; it is for the VM, not for display. The same
+	// goes for values the template marks writeOnly, such as passwords.
 	delete(props, access.AirlockRequestURLValue)
+	if tmpl != nil {
+		for _, k := range writeOnlyKeys(rawOf(tmpl.Spec.ValuesSchema)) {
+			delete(props, k)
+		}
+	}
 	props["display_name"] = svc.Spec.DisplayName
 	props["description"] = svc.Spec.Description
 	if o := svc.Annotations[annOverview]; o != "" {
@@ -244,12 +250,17 @@ func (s *Server) listUserResources(w http.ResponseWriter, r *http.Request, id ac
 		return
 	}
 	tmpls := s.serviceTemplates(r)
+	eps := s.serviceEndpoints(r, controller.NamespaceFor(ws))
 	admin := s.isAdmin(id)
 	out := []resource{}
 	for i := range items {
 		c := &items[i]
 		if c.Spec.ParentService == parent.Name && canSeeUserResource(roles, admin, id, c) {
-			out = append(out, s.serviceJSON(ws, c, tmpls[c.Spec.TemplateRef]))
+			res := s.serviceJSON(ws, c, tmpls[c.Spec.TemplateRef])
+			for k, v := range eps[c.Name] {
+				res.Properties[k] = v
+			}
+			out = append(out, res)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"userResources": out})
@@ -276,7 +287,13 @@ func (s *Server) getUserResource(w http.ResponseWriter, r *http.Request, id acce
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"userResource": s.serviceJSON(ws, ur, s.serviceTemplates(r)[ur.Spec.TemplateRef])})
+	res := s.serviceJSON(ws, ur, s.serviceTemplates(r)[ur.Spec.TemplateRef])
+	// A user resource with its own address, such as an Azure ML compute instance, shows that
+	// rather than a gateway link.
+	for k, v := range s.serviceEndpoints(r, ur.Namespace)[ur.Name] {
+		res.Properties[k] = v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"userResource": res})
 }
 
 func (s *Server) createUserResource(w http.ResponseWriter, r *http.Request, id access.Identity) {
@@ -399,11 +416,12 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, id access.Identi
 	if o := str(system["overview"]); o != "" {
 		svc.Annotations[annOverview] = o
 	}
+	// The creator's object ID also lets a cloud service make them its administrator.
+	svc.Annotations[annOwnerID] = userID(id)
 	path, kind := "", typeWorkspaceService
 	if parent != nil {
 		svc.Spec.ParentService = parent.Name
 		svc.Spec.Owner = id.Principal()
-		svc.Annotations[annOwnerID] = userID(id)
 		kind = typeUserResource
 	}
 	if err := s.Client.Create(r.Context(), svc); err != nil {
@@ -530,6 +548,24 @@ func (s *Server) serviceEndpoints(r *http.Request, ns string) map[string]map[str
 		return out
 	}
 	for _, svc := range list.Items {
+		// A cloud service's composition names where it is reached in an ExternalName Service.
+		if svc.Spec.Type == corev1.ServiceTypeExternalName {
+			uri := svc.Annotations["kubetre.io/connection-uri"]
+			if uri == "" {
+				uri = "https://" + svc.Spec.ExternalName
+			}
+			props := map[string]any{"connection_uri": uri, "is_exposed_externally": false, "address": svc.Spec.ExternalName}
+			details := map[string]any{}
+			if json.Unmarshal([]byte(svc.Annotations["kubetre.io/details"]), &details) == nil {
+				for k, v := range details {
+					if !serviceDerivedProps[k] {
+						props[k] = v
+					}
+				}
+			}
+			out[svc.Labels["kubetre.io/service"]] = props
+			continue
+		}
 		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer || len(svc.Spec.Ports) == 0 {
 			continue
 		}

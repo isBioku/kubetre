@@ -1,0 +1,51 @@
+# AzureTRE's Azure SQL workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: azure-sql
+spec:
+  kind: WorkspaceService
+  displayName: Azure SQL
+  description: An Azure SQL database for this workspace, reached from its machines through a private endpoint. Sign
+    in with Microsoft Entra ID; you are its administrator.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  allowedFQDNs:
+  - login.microsoftonline.com
+  - aadcdn.msftauth.net
+  - aadcdn.msauth.net
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: SQLDatabase
+  valuesSchema:
+    type: object
+    properties:
+      skuName:
+        type: string
+        title: Size
+        enum:
+        - GP_S_Gen5_1
+        - GP_S_Gen5_2
+        - GP_S_Gen5_4
+        - Basic
+        - S0
+        - S1
+        default: GP_S_Gen5_1
+        description: GP_S sizes are serverless and pause when idle.
+        updateable: true
+      maxSizeGb:
+        type: integer
+        title: Maximum size (GB)
+        minimum: 1
+        maximum: 1024
+        default: 32
+        updateable: true
+      databaseName:
+        type: string
+        title: Database name
+        pattern: ^[A-Za-z][A-Za-z0-9_]{0,63}$
+        default: research
+    additionalProperties: false

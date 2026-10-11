@@ -42,11 +42,9 @@ func TestMain(m *testing.M) {
 	env := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join(crds, "crossplane"), filepath.Join(crds, "functions"), filepath.Join(crds, "provider-azure"),
+			filepath.Join(crds, "provider-azure-paas"),
 		},
-		CRDs: []*apiextensionsv1.CustomResourceDefinition{
-			xrdcrd.FromFile(filepath.Join(root, "crossplane", "xrd-workspacenetwork.yaml")),
-			xrdcrd.FromFile(filepath.Join(root, "crossplane", "xrd-researchvm.yaml")),
-		},
+		CRDs:                  xrdCRDs(),
 		ErrorIfCRDPathMissing: true,
 	}
 	cfg, err := env.Start()
@@ -60,6 +58,17 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	_ = env.Stop()
 	os.Exit(code)
+}
+
+// xrdCRDs are the CRDs Crossplane would generate from KubeTRE's XRDs, platform and PaaS.
+func xrdCRDs() []*apiextensionsv1.CustomResourceDefinition {
+	files, _ := filepath.Glob(filepath.Join(root, "crossplane", "xrd-*.yaml"))
+	paas, _ := filepath.Glob(filepath.Join(root, "crossplane", "paas", "xrd-*.yaml"))
+	var out []*apiextensionsv1.CustomResourceDefinition
+	for _, f := range append(files, paas...) {
+		out = append(out, xrdcrd.FromFile(f))
+	}
+	return out
 }
 
 func readYAML(path string) []*unstructured.Unstructured {
@@ -98,7 +107,8 @@ func dryRunCreate(t *testing.T, u *unstructured.Unstructured) error {
 func TestManifestsMatchCrossplaneSchemas(t *testing.T) {
 	files, _ := filepath.Glob(filepath.Join(root, "crossplane", "*.yaml"))
 	more, _ := filepath.Glob(filepath.Join(root, "crossplane", "*", "*.yaml"))
-	files = append(files, more...)
+	deeper, _ := filepath.Glob(filepath.Join(root, "crossplane", "*", "*", "*.yaml"))
+	files = append(append(files, more...), deeper...)
 	if len(files) < 7 {
 		t.Fatalf("expected crossplane manifests, found %v", files)
 	}
@@ -159,14 +169,25 @@ func TestFunctionInputsMatchFunctionSchemas(t *testing.T) {
 
 func environment(t *testing.T) map[string]any {
 	t.Helper()
-	ec := readYAML(filepath.Join(root, "crossplane", "azure", "environmentconfig.yaml"))[0]
-	data, _, _ := unstructured.NestedMap(ec.Object, "data")
+	// Compositions see the platform's environment merged with the PaaS one.
+	data := map[string]any{}
+	for _, f := range []string{filepath.Join("azure", "environmentconfig.yaml"), filepath.Join("paas", "azure", "environmentconfig.yaml")} {
+		ec := readYAML(filepath.Join(root, "crossplane", f))[0]
+		d, _, _ := unstructured.NestedMap(ec.Object, "data")
+		for k, v := range d {
+			data[k] = v
+		}
+	}
 	return data
 }
 
 func templateOf(t *testing.T, file string) string {
 	t.Helper()
-	comp := readYAML(filepath.Join(root, "crossplane", "azure", file))[0]
+	path := filepath.Join(root, "crossplane", "azure", file)
+	if _, err := os.Stat(path); err != nil {
+		path = filepath.Join(root, "crossplane", "paas", "azure", file)
+	}
+	comp := readYAML(path)[0]
 	steps, _, _ := unstructured.NestedSlice(comp.Object, "spec", "pipeline")
 	for _, s := range steps {
 		if tpl, ok, _ := unstructured.NestedString(s.(map[string]any), "input", "inline", "template"); ok {
@@ -181,7 +202,15 @@ func templateOf(t *testing.T, file string) string {
 // observed composite and context passed as data.
 func render(t *testing.T, file string, xr map[string]any, observed map[string]any) (composed []*unstructured.Unstructured, status map[string]any) {
 	t.Helper()
-	tpl, err := template.New(file).Funcs(sprig.TxtFuncMap()).Option("missingkey=error").Parse(templateOf(t, file))
+	// function-go-templating's functions: sprig without env access, plus include.
+	tpl := template.New(file)
+	funcs := sprig.TxtFuncMap()
+	funcs["include"] = func(name string, data any) (string, error) {
+		var buf bytes.Buffer
+		err := tpl.ExecuteTemplate(&buf, name, data)
+		return buf.String(), err
+	}
+	tpl, err := tpl.Funcs(funcs).Option("missingkey=error").Parse(templateOf(t, file))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}

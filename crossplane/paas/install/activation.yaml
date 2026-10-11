@@ -1,0 +1,25 @@
+# Activates only the managed resource kinds the PaaS compositions create, in addition to the
+# platform's policy in crossplane/install (test/crossplane checks both).
+apiVersion: apiextensions.crossplane.io/v1alpha1
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: kubetre-paas
+spec:
+  activate:
+    - privateendpoints.network.azure.m.upbound.io
+    - roleassignments.authorization.azure.m.upbound.io
+    - flexibleservers.dbformysql.azure.m.upbound.io
+    - flexibledatabases.dbformysql.azure.m.upbound.io
+    - mssqlservers.sql.azure.m.upbound.io
+    - mssqldatabases.sql.azure.m.upbound.io
+    - accounts.cognitiveservices.azure.m.upbound.io
+    - deployments.cognitiveservices.azure.m.upbound.io
+    - healthcareworkspaces.healthcareapis.azure.m.upbound.io
+    - healthcarefhirservices.healthcareapis.azure.m.upbound.io
+    - healthcaredicomservices.healthcareapis.azure.m.upbound.io
+    - workspaces.machinelearningservices.azure.m.upbound.io
+    - computeinstances.machinelearningservices.azure.m.upbound.io
+    - accounts.storage.azure.m.upbound.io
+    - vaults.keyvault.azure.m.upbound.io
+    - applicationinsights.insights.azure.m.upbound.io
+    - workspaces.databricks.azure.m.upbound.io

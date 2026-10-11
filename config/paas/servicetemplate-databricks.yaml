@@ -1,0 +1,27 @@
+# AzureTRE's Azure Databricks workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: databricks
+spec:
+  kind: WorkspaceService
+  displayName: Azure Databricks
+  description: An Azure Databricks workspace in this workspace's network, reached from its machines through private
+    endpoints. Workspace owners are its administrators.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  allowedFQDNs:
+  - login.microsoftonline.com
+  - aadcdn.msftauth.net
+  - aadcdn.msauth.net
+  subnets: 2
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: DatabricksWorkspace
+  valuesSchema:
+    type: object
+    properties: {}
+    additionalProperties: false

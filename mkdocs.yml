@@ -82,11 +82,18 @@ nav:
           - Virtual Desktops: templates/workspace-services/virtual-desktops.md
           - Gitea: templates/workspace-services/gitea.md
           - OHDSI Atlas: templates/workspace-services/ohdsi.md
+          - Azure SQL: templates/workspace-services/azure-sql.md
+          - MySQL: templates/workspace-services/mysql.md
+          - Azure OpenAI: templates/workspace-services/azure-openai.md
+          - Health Data Services: templates/workspace-services/health-data-services.md
+          - Azure Machine Learning: templates/workspace-services/azureml.md
+          - Azure Databricks: templates/workspace-services/databricks.md
       - User Resources:
           - Windows VM: templates/user-resources/windows-vm.md
           - Linux VM: templates/user-resources/linux-vm.md
           - Linux Desktop: templates/user-resources/linux-desktop.md
           - Linux VM on KubeVirt: templates/user-resources/linux-vm-kubevirt.md
+          - Azure ML Compute Instance: templates/user-resources/azureml-compute-instance.md
       - Shared Services:
           - Nexus (Package Mirror): templates/shared-services/nexus.md
           - Gitea (Source Mirror): templates/shared-services/gitea-mirror.md
@@ -101,6 +108,7 @@ nav:
           - Airlock: admin/airlock.md
           - Custom Domain and TLS: admin/custom-domain.md
           - KubeVirt: admin/kubevirt.md
+          - Azure PaaS Services: admin/paas.md
           - Tear-down: admin/tear-down.md
       - Development:
           - developers/index.md

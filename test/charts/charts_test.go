@@ -4,6 +4,7 @@ package charts
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -335,5 +336,37 @@ func TestWorkspaceWebServiceCharts(t *testing.T) {
 		if pods != want.pods || lbs != 1 || strings.Join(exposed, ",") != strings.Join(want.exposed, ",") {
 			t.Errorf("%s: %d pods, %d load balancers, exposed %v", chart, pods, lbs, exposed)
 		}
+	}
+}
+
+// The azure-paas chart passes values to the composite resource, keeping the password in a
+// Secret: Crossplane parameters are readable by anyone who can read the resource.
+func TestAzurePaaSChartKeepsThePasswordOutOfParameters(t *testing.T) {
+	var xr, secret map[string]any
+	for _, d := range render(t, "azure-paas", "kind=MySQLDatabase", "skuName=B_Standard_B1ms", "adminPassword=Correct-Horse-9",
+		"kubetre.service=db", "kubetre.creator.objectId=11111111-1111-1111-1111-111111111111") {
+		m := map[string]any{}
+		if err := yaml.Unmarshal(d, &m); err != nil {
+			t.Fatal(err)
+		}
+		switch m["kind"] {
+		case "MySQLDatabase":
+			xr = m
+		case "Secret":
+			secret = m
+		}
+	}
+	params := xr["spec"].(map[string]any)["parameters"].(map[string]any)
+	if strings.Contains(fmt.Sprint(params), "Correct-Horse-9") || params["passwordSecretName"] != "test-admin" {
+		t.Fatalf("parameters = %v", params)
+	}
+	if id, _ := params["id"].(string); len(id) != 10 || params["skuName"] != "B_Standard_B1ms" {
+		t.Fatalf("parameters = %v", params)
+	}
+	if secret == nil || secret["stringData"].(map[string]any)["password"] != "Correct-Horse-9" {
+		t.Fatalf("secret = %v", secret)
+	}
+	if xr["metadata"].(map[string]any)["labels"].(map[string]any)["kubetre.io/service"] != "db" {
+		t.Fatal("compositions label connection details with the service")
 	}
 }

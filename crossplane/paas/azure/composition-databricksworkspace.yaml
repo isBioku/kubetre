@@ -1,0 +1,293 @@
+# An Azure Databricks workspace for a workspace:
+#   - VNet injection into two subnets allocated by KubeTRE, with no public IPs, routed through
+#     the firewall, which allows only the Databricks control plane and its storage,
+#   - no public network access: the UI and API are reached through private endpoints in the
+#     workspace's subnet. Workspace owners become Databricks admins.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: databricksworkspace-azure
+  labels:
+    kubetre.io/cloud: azure
+  annotations:
+    # The Go templates below must reach Crossplane verbatim, untouched by Flux substitution.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  compositeTypeRef:
+    apiVersion: platform.kubetre.io/v1alpha1
+    kind: DatabricksWorkspace
+  mode: Pipeline
+  pipeline:
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: kubetre-azure
+            - type: Reference
+              ref:
+                name: kubetre-azure-paas
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        options: [missingkey=error]
+        inline:
+          template: |
+            {{- $env := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $xr := .observed.composite.resource }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $ws := trimPrefix "ws-" $ns }}
+            {{- $p := $xr.spec.parameters }}
+            {{- $id := $p.id }}
+            {{- $svc := index ($xr.metadata.labels | default dict) "kubetre.io/service" | default $xr.metadata.name }}
+            {{- $obs := index .observed "resources" | default dict }}
+            {{- $zones := $env.privateDnsZoneIds }}
+            {{- $tags := dict "kubetre-workspace" $ws "kubetre-service" $svc }}
+            {{- range $k, $v := (index $env "tags" | default dict) }}{{ $_ := set $tags $k $v }}{{ end }}
+            {{- $members := index $p "members" | default list }}
+            {{- define "observedId" }}{{ dig "resource" "status" "atProvider" "id" "" (index .obs .name | default dict) }}{{ end }}
+            {{- /* A private endpoint in the workspace's VM subnet, once its target exists. */}}
+            {{- define "privateEndpoint" }}
+            {{- $target := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $target }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: PrivateEndpoint
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ .name }}
+                crossplane.io/external-name: {{ printf "pe-%s" .peName }}
+            spec:
+              forProvider:
+                location: {{ .env.location | quote }}
+                resourceGroupName: {{ .env.resourceGroup | quote }}
+                subnetIdSelector:
+                  matchLabels:
+                    kubetre.io/workspace: {{ .ws | quote }}
+                    kubetre.io/role: vm-subnet
+                privateServiceConnection:
+                  name: {{ printf "psc-%s" .peName | quote }}
+                  isManualConnection: false
+                  privateConnectionResourceId: {{ $target | quote }}
+                  subresourceNames: [{{ .subresource | quote }}]
+                privateDnsZoneGroup:
+                  name: default
+                  privateDnsZoneIds: {{ toJson .zones }}
+                tags: {{ toJson .tags }}
+            {{- end }}
+            {{- end }}
+            {{- /* Roles for workspace members on a composed resource, once it exists. */}}
+            {{- define "roleAssignments" }}
+            {{- $scope := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $scope }}
+            {{- $ctx := . }}
+            {{- range $m := .members }}
+            {{- if or (eq $m.role "owner") (not (index $ctx "ownersOnly")) }}
+            {{- range $key, $role := $ctx.roles }}
+            ---
+            apiVersion: authorization.azure.m.upbound.io/v1beta1
+            kind: RoleAssignment
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "role-%s-%s-%s" $ctx.target $key ($m.objectId | trunc 8) }}
+            spec:
+              forProvider:
+                principalId: {{ $m.objectId | quote }}
+                principalType: User
+                roleDefinitionName: {{ $role | quote }}
+                scope: {{ $scope | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /* Where the workspace's machines reach the service, for the API to show. */}}
+            {{- define "connection" }}
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: connection
+                kubetre.io/connection-uri: {{ .uri | quote }}
+                {{- with .details }}
+                kubetre.io/details: {{ toJson . | quote }}
+                {{- end }}
+              labels:
+                kubetre.io/service: {{ .svc | quote }}
+            spec:
+              type: ExternalName
+              externalName: {{ .host | quote }}
+            {{- end }}
+            {{- $dbw := printf "dbw-%s" $id }}
+            {{- $host := index $p.subnets 0 }}
+            {{- $container := index $p.subnets 1 }}
+            {{- $subnetName := dict "host" (printf "snet-%s-host" $dbw) "container" (printf "snet-%s-container" $dbw) }}
+            {{- $prefixes := dict "host" $host "container" $container }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SecurityGroup
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: nsg
+                crossplane.io/external-name: {{ printf "nsg-%s" $dbw }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                tags: {{ toJson $tags }}
+                # Databricks adds no rules of its own (NoAzureDatabricksRules): clusters talk to each other
+                # and, through the firewall, to the Databricks control plane, and to nothing else.
+                securityRule:
+                  - {name: allow-cluster-in, priority: 100, direction: Inbound, access: Allow, protocol: "*",
+                     sourceAddressPrefixes: [{{ $host | quote }}, {{ $container | quote }}], sourcePortRange: "*",
+                     destinationAddressPrefixes: [{{ $host | quote }}, {{ $container | quote }}], destinationPortRange: "*"}
+                  - {name: deny-all-in, priority: 4096, direction: Inbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: "*", destinationPortRange: "*"}
+                  - {name: allow-cluster-out, priority: 100, direction: Outbound, access: Allow, protocol: "*",
+                     sourceAddressPrefixes: [{{ $host | quote }}, {{ $container | quote }}], sourcePortRange: "*",
+                     destinationAddressPrefixes: [{{ $host | quote }}, {{ $container | quote }}], destinationPortRange: "*"}
+                  - {name: allow-databricks-out, priority: 110, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: VirtualNetwork, sourcePortRange: "*",
+                     destinationAddressPrefix: AzureDatabricks, destinationPortRanges: ["443", "3306", "8443-8451"]}
+                  - {name: allow-sql-out, priority: 120, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: VirtualNetwork, sourcePortRange: "*", destinationAddressPrefix: Sql, destinationPortRange: "3306"}
+                  - {name: allow-storage-out, priority: 130, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: VirtualNetwork, sourcePortRange: "*", destinationAddressPrefix: Storage, destinationPortRange: "443"}
+                  - {name: allow-eventhub-out, priority: 140, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: VirtualNetwork, sourcePortRange: "*", destinationAddressPrefix: EventHub, destinationPortRange: "9093"}
+                  - {name: deny-virtual-network-out, priority: 4000, direction: Outbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: VirtualNetwork, destinationPortRange: "*"}
+                  - {name: deny-all-out, priority: 4096, direction: Outbound, access: Deny, protocol: "*",
+                     sourceAddressPrefix: "*", sourcePortRange: "*", destinationAddressPrefix: "*", destinationPortRange: "*"}
+            {{- range $role := list "host" "container" }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: Subnet
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "subnet-%s" $role }}
+                crossplane.io/external-name: {{ index $subnetName $role }}
+              labels:
+                kubetre.io/databricks-subnet: {{ $role }}
+            spec:
+              forProvider:
+                resourceGroupName: {{ $env.vnetResourceGroup | quote }}
+                virtualNetworkName: {{ $env.virtualNetworkName | quote }}
+                addressPrefixes: [{{ index $prefixes $role | quote }}]
+                delegation:
+                  - name: databricks
+                    serviceDelegation:
+                      name: Microsoft.Databricks/workspaces
+                      actions:
+                        - Microsoft.Network/virtualNetworks/subnets/join/action
+                        - Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action
+                        - Microsoft.Network/virtualNetworks/subnets/unprepareNetworkPolicies/action
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SubnetNetworkSecurityGroupAssociation
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "nsg-%s" $role }}
+            spec:
+              forProvider:
+                subnetIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    kubetre.io/databricks-subnet: {{ $role }}
+                networkSecurityGroupIdSelector:
+                  matchControllerRef: true
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: SubnetRouteTableAssociation
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "route-%s" $role }}
+            spec:
+              forProvider:
+                subnetIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    kubetre.io/databricks-subnet: {{ $role }}
+                routeTableId: {{ $env.routeTableId | quote }}
+            {{- end }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: FirewallPolicyRuleCollectionGroup
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: egress-rules
+                crossplane.io/external-name: {{ printf "rcg-%s" $dbw }}
+            spec:
+              forProvider:
+                firewallPolicyId: {{ $env.firewallPolicyId | quote }}
+                priority: {{ $p.firewallPriority }}
+                networkRuleCollection:
+                  - name: {{ printf "%s-control-plane" $dbw | quote }}
+                    priority: 100
+                    action: Allow
+                    rule:
+                      - name: databricks
+                        protocols: [TCP]
+                        sourceAddresses: [{{ $host | quote }}, {{ $container | quote }}]
+                        destinationAddresses: [AzureDatabricks]
+                        destinationPorts: ["443", "3306", "8443-8451"]
+                      - name: metastore
+                        protocols: [TCP]
+                        sourceAddresses: [{{ $host | quote }}, {{ $container | quote }}]
+                        destinationAddresses: [Sql]
+                        destinationPorts: ["3306"]
+                      - name: storage
+                        protocols: [TCP]
+                        sourceAddresses: [{{ $host | quote }}, {{ $container | quote }}]
+                        destinationAddresses: [Storage]
+                        destinationPorts: ["443"]
+                      - name: eventhub
+                        protocols: [TCP]
+                        sourceAddresses: [{{ $host | quote }}, {{ $container | quote }}]
+                        destinationAddresses: [EventHub]
+                        destinationPorts: ["9093"]
+            {{- $hostAssoc := include "observedId" (dict "obs" $obs "name" "nsg-host") }}
+            {{- $containerAssoc := include "observedId" (dict "obs" $obs "name" "nsg-container") }}
+            {{- if and $hostAssoc $containerAssoc }}
+            ---
+            apiVersion: databricks.azure.m.upbound.io/v1beta1
+            kind: Workspace
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: workspace
+                crossplane.io/external-name: {{ $dbw }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                sku: premium
+                managedResourceGroupName: {{ printf "rg-%s-managed" $dbw | quote }}
+                publicNetworkAccessEnabled: false
+                networkSecurityGroupRulesRequired: NoAzureDatabricksRules
+                infrastructureEncryptionEnabled: true
+                customParameters:
+                  noPublicIp: true
+                  virtualNetworkId: {{ $env.virtualNetworkId | quote }}
+                  publicSubnetName: {{ $subnetName.host | quote }}
+                  privateSubnetName: {{ $subnetName.container | quote }}
+                  publicSubnetNetworkSecurityGroupAssociationId: {{ $hostAssoc | quote }}
+                  privateSubnetNetworkSecurityGroupAssociationId: {{ $containerAssoc | quote }}
+                tags: {{ toJson $tags }}
+            {{- end }}
+            {{- template "privateEndpoint" (dict "obs" $obs "target" "workspace" "name" "endpoint" "peName" $dbw "subresource" "databricks_ui_api" "zones" (list $zones.databricks) "env" $env "ws" $ws "tags" $tags) }}
+            {{- template "privateEndpoint" (dict "obs" $obs "target" "workspace" "name" "endpoint-auth" "peName" (printf "%s-auth" $dbw) "subresource" "browser_authentication" "zones" (list $zones.databricks) "env" $env "ws" $ws "tags" $tags) }}
+            {{- template "roleAssignments" (dict "obs" $obs "target" "workspace" "members" $members "ownersOnly" true "roles" (dict "admin" "Contributor")) }}
+            {{- $url := dig "resource" "status" "atProvider" "workspaceUrl" "" (index $obs "workspace" | default dict) }}
+            {{- if $url }}
+            {{- template "connection" (dict "svc" $svc "host" $url "uri" (printf "https://%s/" $url) "details" (dict "authentication" "Microsoft Entra ID")) }}
+            {{- end }}

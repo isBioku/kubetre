@@ -1,0 +1,26 @@
+{{- /* A stable suffix for Azure resource names, from the namespace and release. */ -}}
+{{- $id := printf "%s/%s" .Release.Namespace .Release.Name | sha256sum | trunc 10 -}}
+{{- $params := omit .Values "kind" "kubetre" "adminPassword" -}}
+{{- $_ := set $params "id" $id -}}
+{{- $_ := set $params "members" .Values.kubetre.members -}}
+{{- $_ := set $params "creator" .Values.kubetre.creator -}}
+{{- if .Values.kubetre.subnets }}
+{{- $_ := set $params "subnets" .Values.kubetre.subnets -}}
+{{- $_ := set $params "firewallPriority" .Values.kubetre.firewallPriority -}}
+{{- end }}
+{{- with .Values.kubetre.parentService }}
+{{- $_ := set $params "parentService" . -}}
+{{- end }}
+{{- if .Values.adminPassword }}
+{{- $_ := set $params "passwordSecretName" (printf "%s-admin" .Release.Name) -}}
+{{- end }}
+apiVersion: platform.kubetre.io/v1alpha1
+kind: {{ required "kind is set by the ServiceTemplate" .Values.kind }}
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    kubetre.io/service: {{ .Values.kubetre.service | quote }}
+spec:
+  parameters: {{- toYaml $params | nindent 4 }}

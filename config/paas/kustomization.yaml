@@ -1,0 +1,9 @@
+# Templates for the optional Azure PaaS workspace services, registered by deploy/azure/paas.
+resources:
+  - servicetemplate-azure-sql.yaml
+  - servicetemplate-mysql.yaml
+  - servicetemplate-azure-openai.yaml
+  - servicetemplate-health-data-services.yaml
+  - servicetemplate-azureml.yaml
+  - servicetemplate-azureml-compute-instance.yaml
+  - servicetemplate-databricks.yaml

@@ -1,0 +1,30 @@
+# AzureTRE's Health Data Services workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: health-data-services
+spec:
+  kind: WorkspaceService
+  displayName: Health Data Services
+  description: An Azure Health Data Services FHIR service, and optionally DICOM, for this workspace, reached from
+    its machines through a private endpoint. Sign in with Microsoft Entra ID.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  allowedFQDNs:
+  - login.microsoftonline.com
+  - aadcdn.msftauth.net
+  - aadcdn.msauth.net
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: HealthDataService
+  valuesSchema:
+    type: object
+    properties:
+      dicom:
+        type: boolean
+        title: Add a DICOM service
+        default: false
+    additionalProperties: false

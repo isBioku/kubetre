@@ -25,6 +25,13 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 | Virtual Desktops | Workspace service | [Virtual Desktops](workspace-services/virtual-desktops.md) |
 | Gitea | Workspace service | [Gitea](workspace-services/gitea.md) |
 | OHDSI Atlas | Workspace service | [OHDSI Atlas](workspace-services/ohdsi.md) |
+| Azure SQL | Workspace service, optional | [Azure SQL](workspace-services/azure-sql.md) |
+| MySQL | Workspace service, optional | [MySQL](workspace-services/mysql.md) |
+| Azure OpenAI | Workspace service, optional | [Azure OpenAI](workspace-services/azure-openai.md) |
+| Health Data Services | Workspace service, optional | [Health Data Services](workspace-services/health-data-services.md) |
+| Azure Machine Learning | Workspace service, optional | [Azure Machine Learning](workspace-services/azureml.md) |
+| Azure Databricks | Workspace service, optional | [Azure Databricks](workspace-services/databricks.md) |
+| Azure ML compute instance | User resource, optional | [Azure ML compute instance](user-resources/azureml-compute-instance.md) |
 | Windows VM (Windows Server 2022) | User resource | [Windows VM](user-resources/windows-vm.md) |
 | Linux VM (Ubuntu 24.04) | User resource | [Linux VM](user-resources/linux-vm.md) |
 | Linux desktop | User resource | [Linux desktop](user-resources/linux-desktop.md) |
@@ -37,8 +44,6 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 AzureTRE ships many more templates. KubeTRE has no equivalent yet for these, so they do not
 appear in the UI:
 
-- **Workspace services:** Azure ML, Azure Databricks, Health Services, MySQL, Azure SQL,
-  Azure OpenAI.
 - **Shared services:** CycleCloud.
 
 To add your own, see [Authoring templates](../developers/authoring-templates.md).

@@ -1,0 +1,282 @@
+# Crossplane providers for the optional PaaS workspace services. Same version as
+# crossplane/install/packages.yaml; one runtime config per provider so each runs under a fixed
+# service account name, matching the federated credentials in infra/azure/paas.tf.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-dbformysql
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-dbformysql
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-dbformysql
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-dbformysql:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-dbformysql
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-sql
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-sql
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-sql
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-sql:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-sql
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-cognitiveservices
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-cognitiveservices
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-cognitiveservices
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-cognitiveservices:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-cognitiveservices
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-healthcareapis
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-healthcareapis
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-healthcareapis
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-healthcareapis:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-healthcareapis
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-machinelearningservices
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-machinelearningservices
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-machinelearningservices
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-machinelearningservices:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-machinelearningservices
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-databricks
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-databricks
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-databricks
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-databricks:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-databricks
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-storage
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-storage
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-storage
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-storage:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-storage
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-keyvault
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-keyvault
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-keyvault
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-keyvault:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-keyvault
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-insights
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-insights
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-insights
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-insights:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-insights
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-authorization
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-authorization
+      annotations:
+        # Client ID of the Crossplane user-assigned identity; replaced per environment.
+        azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-authorization
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-authorization:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-authorization

@@ -1,0 +1,28 @@
+# AzureTRE's Azure ML workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: azureml
+spec:
+  kind: WorkspaceService
+  displayName: Azure Machine Learning
+  description: An Azure Machine Learning workspace for this workspace, with private endpoints in its subnet. Members
+    create their own compute instances under it.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  allowedFQDNs:
+  - login.microsoftonline.com
+  - aadcdn.msftauth.net
+  - aadcdn.msauth.net
+  - ml.azure.com
+  - management.azure.com
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: MLWorkspace
+  valuesSchema:
+    type: object
+    properties: {}
+    additionalProperties: false

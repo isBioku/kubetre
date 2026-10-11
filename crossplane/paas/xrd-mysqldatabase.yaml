@@ -1,0 +1,108 @@
+# An Azure Database for MySQL flexible server for a workspace, reached through a private endpoint in its subnet.
+# Created by the azure-paas chart.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: mysqldatabases.platform.kubetre.io
+spec:
+  scope: Namespaced
+  group: platform.kubetre.io
+  names:
+    kind: MySQLDatabase
+    plural: mysqldatabases
+  defaultCompositionRef:
+    name: mysqldatabase-azure
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    additionalPrinterColumns:
+    - name: Database
+      type: string
+      jsonPath: .spec.parameters.databaseName
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - parameters
+            properties:
+              parameters:
+                type: object
+                required:
+                - id
+                - skuName
+                - storageGb
+                - version
+                - adminUsername
+                - passwordSecretName
+                - databaseName
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9]{10}$
+                    description: Stable suffix for Azure resource names, derived by the chart from the namespace and release.
+                  members:
+                    type: array
+                    description: Workspace owners and researchers with known Entra object IDs, granted roles on the service.
+                    items:
+                      type: object
+                      required:
+                      - objectId
+                      - role
+                      properties:
+                        objectId:
+                          type: string
+                          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                        email:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                          - owner
+                          - researcher
+                  creator:
+                    type: object
+                    description: Who created the service.
+                    properties:
+                      objectId:
+                        type: string
+                      email:
+                        type: string
+                  skuName:
+                    type: string
+                    enum:
+                    - B_Standard_B1ms
+                    - B_Standard_B2s
+                    - GP_Standard_D2ds_v4
+                    - GP_Standard_D4ds_v4
+                  storageGb:
+                    type: integer
+                    minimum: 20
+                    maximum: 16384
+                  version:
+                    type: string
+                    enum:
+                    - 8.0.21
+                    - '8.4'
+                  adminUsername:
+                    type: string
+                    pattern: ^[a-z][a-z0-9_]{0,15}$
+                  passwordSecretName:
+                    type: string
+                    description: Secret in the namespace whose "password" key is the administrator's password.
+                  databaseName:
+                    type: string
+                    pattern: ^[A-Za-z][A-Za-z0-9_]{0,63}$
+                x-kubernetes-validations:
+                - rule: self.id == oldSelf.id
+                  message: id is immutable
+          status:
+            type: object
+            properties:
+              endpoint:
+                type: string

@@ -290,3 +290,9 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "paas_services_enabled" {
+  description = "Offer Azure PaaS workspace services: Azure SQL, MySQL, Azure OpenAI, Health Data Services, Azure ML and Databricks. Installs their Crossplane providers and creates their private DNS zones."
+  type        = bool
+  default     = true
+}

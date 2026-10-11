@@ -1,0 +1,31 @@
+# AzureTRE's Azure ML compute instance user resource, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: azureml-compute-instance
+spec:
+  kind: UserResource
+  parentTemplate: azureml
+  displayName: Azure ML compute instance
+  description: Your own Azure ML compute instance in the workspace's network, without a public IP.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: MLComputeInstance
+  valuesSchema:
+    type: object
+    properties:
+      vmSize:
+        type: string
+        title: Size
+        enum:
+        - Standard_DS3_v2
+        - Standard_D4s_v5
+        - Standard_E4s_v5
+        - Standard_NC4as_T4_v3
+        default: Standard_DS3_v2
+    additionalProperties: false

@@ -201,11 +201,40 @@ func TestServicesLearnTheWorkspaceVMSubnet(t *testing.T) {
 	svc := &treV1.WorkspaceService{Spec: treV1.WorkspaceServiceSpec{Owner: "rita@example.com",
 		Values: &apiextensionsv1.JSON{Raw: []byte(`{"kubetre":{"vmSubnet":"spoofed"}}`)}}}
 	svc.Name = "gitea"
-	got, err := mergedValues(tmpl, svc, "study1", VMSubnetName("study1"), treV1.PodSecurityRestricted)
+	got, err := mergedValues(tmpl, svc, platformValues{workspace: "study1", vmSubnet: VMSubnetName("study1"), level: treV1.PodSecurityRestricted})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if kt := got["kubetre"].(map[string]any); kt["vmSubnet"] != "snet-ws-study1" || kt["workspace"] != "study1" {
 		t.Fatalf("kubetre values = %v", kt)
+	}
+}
+
+func TestChartsLearnMembersWithKnownObjectIDs(t *testing.T) {
+	ws := &treV1.Workspace{Spec: treV1.WorkspaceSpec{Owners: []string{"Olu@example.com"}, Researchers: []string{"rita@example.com", "sam@example.com"}},
+		Status: treV1.WorkspaceStatus{MemberIDs: map[string]string{
+			"olu@example.com": "11111111-1111-1111-1111-111111111111", "rita@example.com": "22222222-2222-2222-2222-222222222222",
+			"mallory@example.com": "33333333-3333-3333-3333-333333333333"}}}
+	got := memberValues(ws)
+	if len(got) != 2 || got[0]["role"] != "owner" || got[0]["email"] != "olu@example.com" || got[1]["objectId"] != "22222222-2222-2222-2222-222222222222" {
+		t.Fatalf("members = %v", got)
+	}
+	svc := &treV1.WorkspaceService{Spec: treV1.WorkspaceServiceSpec{ParentService: "aml"}}
+	svc.Name = "ci"
+	svc.Annotations = map[string]string{AnnotationOwnerID: "11111111-1111-1111-1111-111111111111", AnnotationCreatedBy: "olu@example.com"}
+	values, err := mergedValues(serviceTemplate("ci", treV1.PodSecurityRestricted), svc, platformValues{workspace: "w", members: got,
+		subnets: []string{"10.240.1.0/26"}, firewallPriority: 1010})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kt := values["kubetre"].(map[string]any)
+	if kt["parentService"] != "aml" || kt["firewallPriority"] != int64(1010) || len(kt["members"].([]any)) != 2 ||
+		kt["creator"].(map[string]any)["objectId"] != "11111111-1111-1111-1111-111111111111" {
+		t.Fatalf("kubetre values = %v", kt)
+	}
+	svc.Annotations[AnnotationOwnerID] = "olu@example.com"
+	values, _ = mergedValues(serviceTemplate("ci", treV1.PodSecurityRestricted), svc, platformValues{})
+	if values["kubetre"].(map[string]any)["creator"].(map[string]any)["objectId"] != "" {
+		t.Fatal("only real object IDs are passed on")
 	}
 }

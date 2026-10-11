@@ -228,6 +228,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              memberIDs:
+                additionalProperties:
+                  type: string
+                description: |-
+                  MemberIDs maps members' email addresses to their Entra ID object IDs, recorded by the API
+                  when they use the TRE. Cloud services grant roles to these IDs.
+                type: object
               namespace:
                 description: Namespace is the Kubernetes namespace that holds the
                   workspace's workloads.
@@ -237,6 +244,35 @@ spec:
                 type: integer
               phase:
                 type: string
+              serviceSubnets:
+                description: ServiceSubnets are extra subnets allocated to the workspace's
+                  services.
+                items:
+                  description: |-
+                    ServiceSubnetStatus is a service's share of the VM address pool. It is released when the
+                    service is deleted.
+                  properties:
+                    addressPrefixes:
+                      items:
+                        type: string
+                      type: array
+                    firewallPriority:
+                      description: |-
+                        FirewallPriority orders the service's own egress rule collection; unique like a
+                        workspace's.
+                      format: int32
+                      type: integer
+                    service:
+                      type: string
+                  required:
+                  - addressPrefixes
+                  - firewallPriority
+                  - service
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - service
+                x-kubernetes-list-type: map
               vmNetwork:
                 description: VMNetwork is the cloud subnet allocated to this workspace's
                   VMs. Once set it never changes.

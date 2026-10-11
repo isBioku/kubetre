@@ -209,6 +209,9 @@ run "registry_is_locked_down" {
 
 run "crossplane_has_no_broad_permissions" {
   command = apply
+  variables {
+    paas_services_enabled = false
+  }
 
   assert {
     condition = alltrue([
@@ -228,6 +231,29 @@ run "crossplane_has_no_broad_permissions" {
   assert {
     condition     = toset([for f in azurerm_federated_identity_credential.crossplane : f.subject]) == toset(["system:serviceaccount:crossplane-system:provider-azure-network", "system:serviceaccount:crossplane-system:provider-azure-compute"])
     error_message = "Federated credentials must match the provider service account names in crossplane/install."
+  }
+}
+
+# PaaS services need Crossplane to create Azure services and grant members roles, but only in
+# the workspaces resource group, and only the listed data roles.
+run "paas_permissions_stay_in_the_workspaces_group" {
+  command = apply
+
+  assert {
+    condition     = azurerm_role_assignment.crossplane_paas[0].scope == azurerm_resource_group.workspaces.id && azurerm_role_assignment.crossplane_paas_roles[0].scope == azurerm_resource_group.workspaces.id
+    error_message = "PaaS permissions must be scoped to the workspaces resource group."
+  }
+  assert {
+    condition     = azurerm_role_assignment.crossplane_paas_roles[0].condition_version == "2.0" && strcontains(azurerm_role_assignment.crossplane_paas_roles[0].condition, "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd") && !strcontains(azurerm_role_assignment.crossplane_paas_roles[0].condition, "8e3af657-a8ff-443c-a75c-2fe8c4bcb635")
+    error_message = "Crossplane may only grant the listed roles, never Owner."
+  }
+  assert {
+    condition     = length(azurerm_private_dns_zone_virtual_network_link.paas) == length(azurerm_private_dns_zone.paas) && length(azurerm_private_dns_zone.paas) == 11
+    error_message = "Every PaaS private DNS zone must be linked to the VNet."
+  }
+  assert {
+    condition     = contains([for f in azurerm_federated_identity_credential.crossplane : f.subject], "system:serviceaccount:crossplane-system:provider-azure-sql")
+    error_message = "The PaaS providers' service accounts must be federated."
   }
 }
 

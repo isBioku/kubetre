@@ -119,10 +119,32 @@ type WorkspaceStatus struct {
 	// +optional
 	VMNetwork *VMNetworkStatus `json:"vmNetwork,omitempty"`
 
+	// ServiceSubnets are extra subnets allocated to the workspace's services.
+	// +optional
+	// +listType=map
+	// +listMapKey=service
+	ServiceSubnets []ServiceSubnetStatus `json:"serviceSubnets,omitempty"`
+
+	// MemberIDs maps members' email addresses to their Entra ID object IDs, recorded by the API
+	// when they use the TRE. Cloud services grant roles to these IDs.
+	// +optional
+	MemberIDs map[string]string `json:"memberIDs,omitempty"`
+
 	// +optional
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// ServiceSubnetStatus is a service's share of the VM address pool. It is released when the
+// service is deleted.
+type ServiceSubnetStatus struct {
+	Service         string   `json:"service"`
+	AddressPrefixes []string `json:"addressPrefixes"`
+
+	// FirewallPriority orders the service's own egress rule collection; unique like a
+	// workspace's.
+	FirewallPriority int32 `json:"firewallPriority"`
 }
 
 // VMNetworkStatus records a workspace's VM subnet allocation.

@@ -1,0 +1,62 @@
+# AzureTRE's MySQL workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: mysql
+spec:
+  kind: WorkspaceService
+  displayName: MySQL
+  description: An Azure Database for MySQL server for this workspace, reached from its machines through a private
+    endpoint.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: MySQLDatabase
+    adminUsername: treadmin
+    version: 8.0.21
+  valuesSchema:
+    type: object
+    required:
+    - adminPassword
+    properties:
+      skuName:
+        type: string
+        title: Size
+        enum:
+        - B_Standard_B1ms
+        - B_Standard_B2s
+        - GP_Standard_D2ds_v4
+        - GP_Standard_D4ds_v4
+        default: B_Standard_B1ms
+        updateable: true
+      storageGb:
+        type: integer
+        title: Storage (GB)
+        minimum: 20
+        maximum: 16384
+        default: 20
+        updateable: true
+      databaseName:
+        type: string
+        title: Database name
+        pattern: ^[A-Za-z][A-Za-z0-9_]{0,63}$
+        default: research
+      adminPassword:
+        type: string
+        title: Administrator password
+        format: password
+        writeOnly: true
+        updateable: true
+        minLength: 12
+        maxLength: 128
+        description: For the treadmin account. At least 12 characters with upper and lower case letters and a digit.
+          It is never shown again.
+        allOf:
+        - pattern: '[a-z]'
+        - pattern: '[A-Z]'
+        - pattern: '[0-9]'
+    additionalProperties: false

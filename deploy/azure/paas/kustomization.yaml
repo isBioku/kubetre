@@ -1,0 +1,21 @@
+# Azure PaaS workspace services: providers, XRDs, compositions and templates, configured for
+# this environment. Enabled by paas_services_enabled in infra/azure.
+resources:
+  - ../../../crossplane/paas
+  - ../../../config/paas
+patches:
+  - target: {kind: DeploymentRuntimeConfig}
+    patch: |
+      - op: replace
+        path: /spec/serviceAccountTemplate/metadata/annotations/azure.workload.identity~1client-id
+        value: ${CROSSPLANE_CLIENT_ID}
+  - target: {kind: EnvironmentConfig, name: kubetre-azure-paas}
+    patch: |
+      - {op: replace, path: /data/tenantId, value: "${AZURE_TENANT_ID}"}
+      - {op: replace, path: /data/virtualNetworkId, value: "${VNET_ID}"}
+      - {op: replace, path: /data/logAnalyticsWorkspaceId, value: "${LOG_ANALYTICS_ID}"}
+      - {op: replace, path: /data/privateDnsZoneIds, value: "${PRIVATE_DNS_ZONE_IDS}"}
+  # Templates install the chart from this environment's ACR.
+  - target: {kind: ServiceTemplate}
+    patch: |
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/azure-paas"}

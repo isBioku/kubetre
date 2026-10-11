@@ -168,10 +168,11 @@ func vmIngress(ws *treV1.Workspace) []networkingv1.NetworkPolicyIngressRule {
 }
 
 // AllowedFQDNs merges the template and workspace allowlists, sorted and de-duplicated.
-func AllowedFQDNs(tmpl *treV1.WorkspaceTemplate, ws *treV1.Workspace) []string {
+// Extra lists, such as those of the workspace's services, are added.
+func AllowedFQDNs(tmpl *treV1.WorkspaceTemplate, ws *treV1.Workspace, extra ...[]string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, list := range [][]string{tmpl.Spec.Egress.AllowedFQDNs, ws.Spec.Egress.AllowedFQDNs} {
+	for _, list := range append([][]string{tmpl.Spec.Egress.AllowedFQDNs, ws.Spec.Egress.AllowedFQDNs}, extra...) {
 		for _, f := range list {
 			f = strings.ToLower(strings.TrimSpace(f))
 			if f != "" && !seen[f] {

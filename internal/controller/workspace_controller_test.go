@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	pool, err := ParseVMPool("10.240.0.0/24", 26)
+	pool, err := ParseVMPool("10.240.0.0/23", 26)
 	if err != nil {
 		panic(err)
 	}

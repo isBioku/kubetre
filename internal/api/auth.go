@@ -94,7 +94,8 @@ func stringsAt(claims map[string]any, path []string) []string {
 // and must never be exposed to a network.
 type DevAuthenticator struct{}
 
-// Authenticate reads X-Dev-User and the comma-separated X-Dev-Roles header.
+// Authenticate reads X-Dev-User, the comma-separated X-Dev-Roles header and an optional
+// X-Dev-Object-Id.
 func (DevAuthenticator) Authenticate(r *http.Request) (Identity, error) {
 	user := r.Header.Get("X-Dev-User")
 	if user == "" {
@@ -106,5 +107,5 @@ func (DevAuthenticator) Authenticate(r *http.Request) (Identity, error) {
 			roles = append(roles, role)
 		}
 	}
-	return Identity{Subject: user, Email: user, Name: user, Roles: roles}, nil
+	return Identity{Subject: user, Email: user, Name: user, Roles: roles, ObjectID: r.Header.Get("X-Dev-Object-Id")}, nil
 }

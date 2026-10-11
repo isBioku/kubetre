@@ -72,6 +72,12 @@ This reference is generated from `infra/azure/variables.tf` by `hack/gen-config-
 | `airlock_malware_scanning_enabled` | `false` | Scan every file uploaded to the airlock with Microsoft Defender for Storage. Files are not reviewed until scanned. Billed per GB scanned. |
 | `airlock_malware_scanning_cap_gb` | `100` | Monthly cap, in GB, on malware scanning per airlock storage account. |
 
+## Azure PaaS services
+
+| Variable | Default | Description |
+|---|---|---|
+| `paas_services_enabled` | `true` | Offer Azure PaaS workspace services: Azure SQL, MySQL, Azure OpenAI, Health Data Services, Azure ML and Databricks. Installs their Crossplane providers and creates their private DNS zones. |
+
 ## Identity
 
 | Variable | Default | Description |

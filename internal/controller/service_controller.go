@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -105,19 +107,28 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Services in a workspace with virtual machines learn its subnet, so they can offer an
 	// internal load balancer or private endpoint that the workspace's VMs reach.
-	vmSubnet := ""
+	pv := platformValues{workspace: workspace, level: enforced.OrDefault()}
 	if !shared {
 		ws := &treV1.Workspace{}
 		if err := r.Get(ctx, types.NamespacedName{Name: workspace}, ws); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 		if ws.Status.VMNetwork != nil {
-			vmSubnet = VMSubnetName(ws.Name)
+			pv.vmSubnet = VMSubnetName(ws.Name)
+		}
+		pv.members = memberValues(ws)
+		for _, s := range ws.Status.ServiceSubnets {
+			if s.Service == svc.Name {
+				pv.subnets, pv.firewallPriority = s.AddressPrefixes, s.FirewallPriority
+			}
 		}
 	}
-	if tmpl.Spec.RequiresVirtualMachines && vmSubnet == "" {
+	if (tmpl.Spec.RequiresVirtualMachines || tmpl.Spec.Subnets > 0) && pv.vmSubnet == "" {
 		return fail("VirtualMachinesNotEnabled",
 			"this service needs a workspace with virtual machines; use a workspace template that enables them", time.Minute)
+	}
+	if int(tmpl.Spec.Subnets) > len(pv.subnets) {
+		return fail("WaitingForSubnets", "waiting for the workspace to allocate this service's subnets", 10*time.Second)
 	}
 
 	// A template without a chart only groups user resources (for example virtual desktops):
@@ -135,7 +146,7 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	values, err := mergedValues(tmpl, svc, workspace, vmSubnet, enforced.OrDefault())
+	values, err := mergedValues(tmpl, svc, pv)
 	if err != nil {
 		return fail("InvalidValues", err.Error(), 0)
 	}
@@ -170,7 +181,7 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 // mergedValues layers admin values, then user values, then KubeTRE's own values.
 // The "kubetre" key is always KubeTRE's, so users cannot spoof the owner or workspace.
-func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, workspace, vmSubnet string, level treV1.PodSecurityLevel) (map[string]any, error) {
+func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, pv platformValues) (map[string]any, error) {
 	out := map[string]any{}
 	for _, src := range []*struct {
 		name string
@@ -185,14 +196,73 @@ func mergedValues(tmpl *treV1.ServiceTemplate, svc *treV1.WorkspaceService, work
 		}
 		deepMerge(out, layer)
 	}
+	subnets := []any{}
+	for _, s := range pv.subnets {
+		subnets = append(subnets, s)
+	}
+	members := []any{}
+	for _, m := range pv.members {
+		members = append(members, m)
+	}
+	creator := map[string]any{"email": svc.Annotations[AnnotationCreatedBy], "objectId": ""}
+	if id := svc.Annotations[AnnotationOwnerID]; isObjectID(id) {
+		creator["objectId"] = id
+	}
 	out["kubetre"] = map[string]any{
-		"workspace":   workspace,
-		"service":     svc.Name,
-		"owner":       svc.Spec.Owner,
-		"podSecurity": string(level),
-		"vmSubnet":    vmSubnet,
+		"workspace":        pv.workspace,
+		"service":          svc.Name,
+		"owner":            svc.Spec.Owner,
+		"podSecurity":      string(pv.level),
+		"vmSubnet":         pv.vmSubnet,
+		"subnets":          subnets,
+		"firewallPriority": int64(pv.firewallPriority),
+		"parentService":    svc.Spec.ParentService,
+		"members":          members,
+		"creator":          creator,
 	}
 	return out, nil
+}
+
+// platformValues are what KubeTRE tells a chart about where it is installed.
+type platformValues struct {
+	workspace string
+	level     treV1.PodSecurityLevel
+	vmSubnet  string
+	subnets   []string
+	members   []map[string]any
+	// firewallPriority orders the service's own firewall rules, when it has subnets.
+	firewallPriority int32
+}
+
+// Annotations the API sets on services it creates.
+const (
+	AnnotationCreatedBy = "kubetre.io/created-by"
+	AnnotationOwnerID   = "kubetre.io/owner-id"
+)
+
+func isObjectID(s string) bool { _, err := uuid.Parse(s); return err == nil && len(s) == 36 }
+
+// memberValues lists the workspace's owners and researchers whose Entra object IDs the API has
+// recorded, so cloud services can grant them roles. Sorted, so values do not churn.
+func memberValues(ws *treV1.Workspace) []map[string]any {
+	var out []map[string]any
+	seen := map[string]bool{}
+	for _, group := range []struct {
+		role   string
+		emails []string
+	}{{"owner", ws.Spec.Owners}, {"researcher", ws.Spec.Researchers}} {
+		emails := append([]string(nil), group.emails...)
+		sortStrings(emails)
+		for _, e := range emails {
+			id := ws.Status.MemberIDs[strings.ToLower(e)]
+			if !isObjectID(id) || seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, map[string]any{"objectId": id, "email": strings.ToLower(e), "role": group.role})
+		}
+	}
+	return out
 }
 
 func rawOf(j *apiextensionsv1.JSON) []byte {
@@ -348,6 +418,8 @@ func (r *WorkspaceServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&treV1.WorkspaceService{}).
 		Watches(&treV1.ServiceTemplate{}, handler.EnqueueRequestsFromMapFunc(r.servicesForTemplate)).
+		// Membership and allocated subnets reach charts as values.
+		Watches(&treV1.Workspace{}, handler.EnqueueRequestsFromMapFunc(r.servicesForWorkspace)).
 		Named("workspaceservice").
 		Complete(r)
 }
@@ -355,6 +427,18 @@ func (r *WorkspaceServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *WorkspaceServiceReconciler) servicesForTemplate(ctx context.Context, o client.Object) []reconcile.Request {
 	list := &treV1.WorkspaceServiceList{}
 	if err := r.List(ctx, list, client.MatchingFields{serviceTemplateIndex: o.GetName()}); err != nil {
+		return nil
+	}
+	reqs := make([]reconcile.Request, 0, len(list.Items))
+	for _, s := range list.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: s.Namespace, Name: s.Name}})
+	}
+	return reqs
+}
+
+func (r *WorkspaceServiceReconciler) servicesForWorkspace(ctx context.Context, o client.Object) []reconcile.Request {
+	list := &treV1.WorkspaceServiceList{}
+	if err := r.List(ctx, list, client.InNamespace(NamespacePrefix+o.GetName())); err != nil {
 		return nil
 	}
 	reqs := make([]reconcile.Request, 0, len(list.Items))

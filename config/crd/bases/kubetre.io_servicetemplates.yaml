@@ -56,6 +56,14 @@ spec:
             description: ServiceTemplateSpec defines a service that can be installed
               into workspaces.
             properties:
+              allowedFQDNs:
+                description: |-
+                  AllowedFQDNs are hostnames this service's workspace may reach on HTTPS while the service
+                  exists, added to the workspace's own list. For example, sign-in for a cloud service that
+                  users open from the workspace's machines.
+                items:
+                  type: string
+                type: array
               chart:
                 description: |-
                   Chart is installed for each instance. Omit it for a workspace service that only groups
@@ -129,6 +137,15 @@ spec:
                   RequiresVirtualMachines marks templates that create Azure VMs. They can only be used in
                   workspaces whose template enables virtual machines, which gives them a VM subnet.
                 type: boolean
+              subnets:
+                description: |-
+                  Subnets is how many extra subnets, each the size of a workspace VM subnet, the service
+                  needs in the workspace's network, for example for Azure Databricks. They are allocated
+                  from the VM address pool and passed to the chart as kubetre.subnets.
+                format: int32
+                maximum: 2
+                minimum: 0
+                type: integer
               values:
                 description: |-
                   Values are fixed chart values set by the administrator. User values are

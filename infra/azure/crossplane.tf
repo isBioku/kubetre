@@ -9,7 +9,7 @@ resource "azurerm_user_assigned_identity" "crossplane" {
 }
 
 locals {
-  crossplane_service_accounts = ["provider-azure-network", "provider-azure-compute"]
+  crossplane_service_accounts = concat(["provider-azure-network", "provider-azure-compute"], local.paas_providers)
 }
 
 resource "azurerm_federated_identity_credential" "crossplane" {

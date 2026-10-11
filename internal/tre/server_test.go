@@ -3,6 +3,7 @@ package tre
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	corev1 "k8s.io/api/core/v1"
 	"net/http"
@@ -475,5 +476,65 @@ func TestWorkspaceServiceReportsItsInternalAddress(t *testing.T) {
 	listed := list(e.expect(200, "GET", "/api/workspaces/study1/workspace-services", rita, "")["workspaceServices"])
 	if len(listed) != 1 || m(m(listed[0])["properties"])["private_ip"] != "10.240.0.12" {
 		t.Fatalf("listed = %v", listed)
+	}
+}
+
+// Members' object IDs are recorded as they use the TRE, for cloud services to grant roles to.
+func TestMemberObjectIDsAreRecorded(t *testing.T) {
+	e := newEnv(t, vmWorkspace("study1"))
+	const oid = "11111111-2222-3333-4444-555555555555"
+	e.expect(200, "GET", "/api/workspaces", rita, "", "X-Dev-Object-Id", oid)
+	e.expect(404, "GET", "/api/workspaces/study1", nobody, "", "X-Dev-Object-Id", "99999999-2222-3333-4444-555555555555")
+	ws := &treV1.Workspace{}
+	if err := e.c.Get(context.Background(), types.NamespacedName{Name: "study1"}, ws); err != nil {
+		t.Fatal(err)
+	}
+	if len(ws.Status.MemberIDs) != 1 || ws.Status.MemberIDs[rita] != oid {
+		t.Fatalf("memberIDs = %v", ws.Status.MemberIDs)
+	}
+}
+
+// Passwords are accepted but never returned, and cloud services show where they are reached.
+func TestCloudServicePasswordsAndAddresses(t *testing.T) {
+	tmpl := &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "mysql"}, Spec: treV1.ServiceTemplateSpec{
+		DisplayName: "MySQL", Chart: &treV1.ChartRef{URL: "oci://r/charts/azure-paas", Version: "0.1.0"},
+		ValuesSchema: &apiextensionsv1.JSON{Raw: []byte(`{"type":"object","required":["adminPassword"],"properties":{
+			"adminPassword":{"type":"string","writeOnly":true,"updateable":true,"minLength":12},
+			"storageGb":{"type":"integer","default":20,"updateable":true}},"additionalProperties":false}`)}}}
+	e := newEnv(t, vmWorkspace("study1"), tmpl)
+	form := e.expect(200, "GET", "/api/workspace-service-templates/mysql?is_update=true", owner, "")
+	if strings.Contains(fmt.Sprint(form["required"]), "adminPassword") || m(m(form["uiSchema"])["adminPassword"])["ui:widget"] != "password" {
+		t.Fatalf("update form = required %v, ui %v", form["required"], form["uiSchema"])
+	}
+	e.expect(422, "POST", "/api/workspaces/study1/workspace-services", owner,
+		`{"templateName":"mysql","properties":{"display_name":"DB","description":"d","adminPassword":"short"}}`)
+	name := m(e.expect(202, "POST", "/api/workspaces/study1/workspace-services", owner,
+		`{"templateName":"mysql","properties":{"display_name":"DB","description":"d","adminPassword":"Correct-Horse-9"}}`)["operation"])["resourceId"].(string)
+
+	ns := controller.NamespacePrefix + "study1"
+	conn := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name + "-connection", Namespace: ns,
+		Labels:      map[string]string{"kubetre.io/service": name},
+		Annotations: map[string]string{"kubetre.io/connection-uri": "mysql://treadmin@mysql-x.mysql.database.azure.com:3306/research", "kubetre.io/details": `{"database":"research","connection_uri":"spoof"}`}},
+		Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeExternalName, ExternalName: "mysql-x.mysql.database.azure.com"}}
+	if err := e.c.Create(context.Background(), conn); err != nil {
+		t.Fatal(err)
+	}
+	props := m(m(e.expect(200, "GET", "/api/workspaces/study1/workspace-services/"+name, rita, "")["workspaceService"])["properties"])
+	if _, leaked := props["adminPassword"]; leaked {
+		t.Fatal("the password must never be returned")
+	}
+	if props["connection_uri"] != "mysql://treadmin@mysql-x.mysql.database.azure.com:3306/research" || props["database"] != "research" ||
+		props["is_exposed_externally"] != false {
+		t.Fatalf("properties = %v", props)
+	}
+	// Updating without the password keeps it.
+	cur := m(e.expect(200, "GET", "/api/workspaces/study1/workspace-services/"+name, owner, "")["workspaceService"])
+	e.expect(202, "PATCH", "/api/workspaces/study1/workspace-services/"+name, owner, `{"properties":{"storageGb":40}}`, "etag", cur["_etag"].(string))
+	svc := &treV1.WorkspaceService{}
+	if err := e.c.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, svc); err != nil {
+		t.Fatal(err)
+	}
+	if v := rawMap(svc.Spec.Values.Raw); v["adminPassword"] != "Correct-Horse-9" || v["storageGb"] != float64(40) {
+		t.Fatalf("values = %v", v)
 	}
 }

@@ -80,3 +80,45 @@ func TestVMWorkspacesGetDistinctSubnetsAndWaitForNetwork(t *testing.T) {
 		t.Fatalf("allocation changed: %+v -> %+v", one, got)
 	}
 }
+
+// A service can widen its workspace's egress and take extra subnets from the VM pool, which
+// are released when it goes.
+func TestServicesWidenEgressAndGetSubnets(t *testing.T) {
+	ctx := context.Background()
+	tmpl := newTemplate("svcnet-tpl", "pypi.org")
+	tmpl.Spec.VirtualMachines.Enabled = true
+	must(t, k8s.Create(ctx, tmpl))
+	must(t, k8s.Create(ctx, newWorkspace("svcnet", "svcnet-tpl")))
+	eventually(t, "VM subnet allocated", func() bool { return getWS(t, "svcnet").Status.VMNetwork != nil })
+	must(t, k8s.Create(ctx, &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "bricks"}, Spec: treV1.ServiceTemplateSpec{
+		DisplayName: "Bricks", AllowedFQDNs: []string{"login.microsoftonline.com"}, Subnets: 2}}))
+	must(t, k8s.Create(ctx, &treV1.WorkspaceService{ObjectMeta: metav1.ObjectMeta{Name: "bricks", Namespace: "ws-svcnet"},
+		Spec: treV1.WorkspaceServiceSpec{TemplateRef: "bricks", DisplayName: "Bricks"}}))
+
+	eventually(t, "service subnets and egress", func() bool {
+		ws := getWS(t, "svcnet")
+		params, _, _ := unstructured.NestedMap(getNetwork(t, "svcnet").Object, "spec", "parameters")
+		fq, _ := params["allowedFQDNs"].([]any)
+		return len(ws.Status.ServiceSubnets) == 1 && len(fq) == 2 && fq[0] == "login.microsoftonline.com"
+	})
+	ws := getWS(t, "svcnet")
+	got := ws.Status.ServiceSubnets[0]
+	if got.Service != "bricks" || len(got.AddressPrefixes) != 2 || got.FirewallPriority == 0 ||
+		got.AddressPrefixes[0] == ws.Status.VMNetwork.AddressPrefix || got.AddressPrefixes[0] == got.AddressPrefixes[1] {
+		t.Fatalf("service subnets = %+v, VM subnet %s", got, ws.Status.VMNetwork.AddressPrefix)
+	}
+	all := &treV1.WorkspaceList{}
+	must(t, k8s.List(ctx, all))
+	for _, other := range all.Items {
+		if o := other.Status.VMNetwork; o != nil && (o.AddressPrefix == got.AddressPrefixes[0] || o.AddressPrefix == got.AddressPrefixes[1]) {
+			t.Fatalf("service subnet collides with %s", other.Name)
+		}
+	}
+
+	must(t, k8s.Delete(ctx, &treV1.WorkspaceService{ObjectMeta: metav1.ObjectMeta{Name: "bricks", Namespace: "ws-svcnet"}}))
+	eventually(t, "subnets released and egress narrowed", func() bool {
+		params, _, _ := unstructured.NestedMap(getNetwork(t, "svcnet").Object, "spec", "parameters")
+		fq, _ := params["allowedFQDNs"].([]any)
+		return len(getWS(t, "svcnet").Status.ServiceSubnets) == 0 && len(fq) == 1
+	})
+}

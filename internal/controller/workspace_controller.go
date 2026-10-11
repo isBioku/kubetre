@@ -3,7 +3,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -117,14 +119,18 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	r.setCondition(ws, treV1.ConditionNetworkPolicy, true, "Reconciled", "default-deny network policies are in place")
 
-	if err := r.reconcileEgress(ctx, ws, tmpl); err != nil {
+	needs, err := r.serviceNeeds(ctx, ws)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileEgress(ctx, ws, tmpl, needs); err != nil {
 		r.setCondition(ws, treV1.ConditionEgressPolicy, false, "ReconcileError", err.Error())
 		_ = r.writeStatus(ctx, ws, original)
 		return ctrl.Result{}, err
 	}
 
 	if tmpl.Spec.VirtualMachines.Enabled {
-		ready, reason, msg, err := r.reconcileVMNetwork(ctx, ws, tmpl)
+		ready, reason, msg, err := r.reconcileVMNetwork(ctx, ws, tmpl, needs)
 		if err != nil {
 			r.setCondition(ws, treV1.ConditionVMNetwork, false, "ReconcileError", err.Error())
 			_ = r.writeStatus(ctx, ws, original)
@@ -239,8 +245,8 @@ func (r *WorkspaceReconciler) reconcileNetworkPolicies(ctx context.Context, ws *
 
 // reconcileEgress manages the FQDN allowlist. Without Cilium the allowlist cannot be
 // enforced, and the default-deny policy blocks all internet egress: the workspace fails closed.
-func (r *WorkspaceReconciler) reconcileEgress(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate) error {
-	fqdns := AllowedFQDNs(tmpl, ws)
+func (r *WorkspaceReconciler) reconcileEgress(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate, needs *serviceNeeds) error {
+	fqdns := AllowedFQDNs(tmpl, ws, needs.fqdns)
 	// Airlock workspaces reach the internal airlock account, through its private endpoint.
 	if ws.Spec.Airlock.Enabled && r.AirlockHost != "" {
 		fqdns = append(fqdns, r.AirlockHost)
@@ -305,24 +311,14 @@ var workspaceNetworkGVK = schema.GroupVersionKind{Group: "platform.kubetre.io", 
 const WorkspaceNetworkName = "vm-network"
 
 // reconcileVMNetwork allocates the workspace's VM subnet once, then asks Crossplane for it.
-func (r *WorkspaceReconciler) reconcileVMNetwork(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate) (bool, string, string, error) {
+func (r *WorkspaceReconciler) reconcileVMNetwork(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate, needs *serviceNeeds) (bool, string, string, error) {
 	if ws.Status.VMNetwork == nil {
 		if r.VMPool == nil {
 			return false, "VMPoolNotConfigured", "the controller has no --vm-address-pool, so VM workspaces cannot be created", nil
 		}
-		reader := r.APIReader
-		if reader == nil {
-			reader = r.Client
-		}
-		list := &treV1.WorkspaceList{}
-		if err := reader.List(ctx, list); err != nil {
+		used, err := r.usedPrefixes(ctx, ws.Name)
+		if err != nil {
 			return false, "", "", err
-		}
-		used := map[string]bool{}
-		for _, other := range list.Items {
-			if other.Name != ws.Name && other.Status.VMNetwork != nil {
-				used[other.Status.VMNetwork.AddressPrefix] = true
-			}
 		}
 		alloc, err := r.VMPool.Allocate(used)
 		if err != nil {
@@ -342,8 +338,15 @@ func (r *WorkspaceReconciler) reconcileVMNetwork(ctx context.Context, ws *treV1.
 		return false, "", "", err
 	}
 
+	if err := r.reconcileServiceSubnets(ctx, ws, needs.subnets); err != nil {
+		if errors.Is(err, ErrPoolExhausted) {
+			return false, "VMPoolExhausted", "no address space is left for the workspace's services: " + err.Error(), nil
+		}
+		return false, "", "", err
+	}
+
 	fqdns := make([]any, 0)
-	for _, f := range AllowedFQDNs(tmpl, ws) {
+	for _, f := range AllowedFQDNs(tmpl, ws, needs.fqdns) {
 		fqdns = append(fqdns, f)
 	}
 	xr := &unstructured.Unstructured{}
@@ -436,6 +439,7 @@ func (r *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Watches(&treV1.WorkspaceTemplate{}, handler.EnqueueRequestsFromMapFunc(r.workspacesForTemplate)).
+		Watches(&treV1.WorkspaceService{}, handler.EnqueueRequestsFromMapFunc(r.workspaceForService)).
 		Named("workspace").
 		Complete(r)
 }
@@ -450,4 +454,126 @@ func (r *WorkspaceReconciler) workspacesForTemplate(ctx context.Context, o clien
 		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: ws.Name}})
 	}
 	return reqs
+}
+
+// serviceNeeds is what a workspace's services ask of its network.
+type serviceNeeds struct {
+	fqdns   []string
+	subnets map[string]int32
+}
+
+func (r *WorkspaceReconciler) serviceNeeds(ctx context.Context, ws *treV1.Workspace) (*serviceNeeds, error) {
+	out := &serviceNeeds{subnets: map[string]int32{}}
+	list := &treV1.WorkspaceServiceList{}
+	if err := r.List(ctx, list, client.InNamespace(NamespaceFor(ws))); err != nil {
+		return nil, err
+	}
+	for _, svc := range list.Items {
+		if !svc.DeletionTimestamp.IsZero() {
+			continue
+		}
+		tmpl := &treV1.ServiceTemplate{}
+		if err := r.Get(ctx, types.NamespacedName{Name: svc.Spec.TemplateRef}, tmpl); err != nil {
+			// A template registered moments ago may not be cached yet.
+			if r.APIReader == nil || r.APIReader.Get(ctx, types.NamespacedName{Name: svc.Spec.TemplateRef}, tmpl) != nil {
+				continue
+			}
+		}
+		out.fqdns = append(out.fqdns, tmpl.Spec.AllowedFQDNs...)
+		if tmpl.Spec.Subnets > 0 {
+			out.subnets[svc.Name] = tmpl.Spec.Subnets
+		}
+	}
+	return out, nil
+}
+
+// usedPrefixes lists every subnet allocated from the VM pool, except the given workspace's
+// own VM subnet. It reads uncached: two workspaces may allocate back to back.
+func (r *WorkspaceReconciler) usedPrefixes(ctx context.Context, except string) (map[string]bool, error) {
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+	list := &treV1.WorkspaceList{}
+	if err := reader.List(ctx, list); err != nil {
+		return nil, err
+	}
+	used := map[string]bool{}
+	for _, other := range list.Items {
+		if other.Name != except && other.Status.VMNetwork != nil {
+			used[other.Status.VMNetwork.AddressPrefix] = true
+		}
+		for _, s := range other.Status.ServiceSubnets {
+			for _, p := range s.AddressPrefixes {
+				used[p] = true
+			}
+		}
+	}
+	return used, nil
+}
+
+// reconcileServiceSubnets allocates extra subnets to services that ask for them, and releases
+// those of services that are gone.
+func (r *WorkspaceReconciler) reconcileServiceSubnets(ctx context.Context, ws *treV1.Workspace, needs map[string]int32) error {
+	var keep []treV1.ServiceSubnetStatus
+	have := map[string]bool{}
+	for _, s := range ws.Status.ServiceSubnets {
+		if needs[s.Service] > 0 {
+			keep = append(keep, s)
+			have[s.Service] = true
+		}
+	}
+	var missing []string
+	for svc := range needs {
+		if !have[svc] {
+			missing = append(missing, svc)
+		}
+	}
+	if len(missing) == 0 && len(keep) == len(ws.Status.ServiceSubnets) {
+		return nil
+	}
+	sortStrings(missing)
+	if len(missing) > 0 {
+		if r.VMPool == nil {
+			return ErrPoolExhausted
+		}
+		used, err := r.usedPrefixes(ctx, ws.Name)
+		if err != nil {
+			return err
+		}
+		used[ws.Status.VMNetwork.AddressPrefix] = true
+		for _, s := range keep {
+			for _, p := range s.AddressPrefixes {
+				used[p] = true
+			}
+		}
+		for _, svc := range missing {
+			alloc := treV1.ServiceSubnetStatus{Service: svc}
+			for i := int32(0); i < needs[svc]; i++ {
+				a, err := r.VMPool.Allocate(used)
+				if err != nil {
+					return err
+				}
+				used[a.AddressPrefix] = true
+				alloc.AddressPrefixes = append(alloc.AddressPrefixes, a.AddressPrefix)
+				if i == 0 {
+					alloc.FirewallPriority = a.FirewallPriority
+				}
+			}
+			keep = append(keep, alloc)
+		}
+	}
+	ws.Status.ServiceSubnets = keep
+	// Persist the allocation before any service is installed with it.
+	return r.Status().Update(ctx, ws)
+}
+
+// workspaceForService maps a workspace's service to the workspace, whose egress and subnets
+// depend on its services.
+func (r *WorkspaceReconciler) workspaceForService(_ context.Context, o client.Object) []reconcile.Request {
+	ns := o.GetNamespace()
+	if !strings.HasPrefix(ns, NamespacePrefix) {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: strings.TrimPrefix(ns, NamespacePrefix)}}}
 }

@@ -1,0 +1,168 @@
+# An Azure Database for MySQL flexible server and database for a workspace, with no public
+# network access and a private endpoint in the workspace's subnet. The administrator's
+# password is the one the workspace owner set, kept in a Secret in the workspace namespace.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: mysqldatabase-azure
+  labels:
+    kubetre.io/cloud: azure
+  annotations:
+    # The Go templates below must reach Crossplane verbatim, untouched by Flux substitution.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  compositeTypeRef:
+    apiVersion: platform.kubetre.io/v1alpha1
+    kind: MySQLDatabase
+  mode: Pipeline
+  pipeline:
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: kubetre-azure
+            - type: Reference
+              ref:
+                name: kubetre-azure-paas
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        options: [missingkey=error]
+        inline:
+          template: |
+            {{- $env := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $xr := .observed.composite.resource }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $ws := trimPrefix "ws-" $ns }}
+            {{- $p := $xr.spec.parameters }}
+            {{- $id := $p.id }}
+            {{- $svc := index ($xr.metadata.labels | default dict) "kubetre.io/service" | default $xr.metadata.name }}
+            {{- $obs := index .observed "resources" | default dict }}
+            {{- $zones := $env.privateDnsZoneIds }}
+            {{- $tags := dict "kubetre-workspace" $ws "kubetre-service" $svc }}
+            {{- range $k, $v := (index $env "tags" | default dict) }}{{ $_ := set $tags $k $v }}{{ end }}
+            {{- $members := index $p "members" | default list }}
+            {{- define "observedId" }}{{ dig "resource" "status" "atProvider" "id" "" (index .obs .name | default dict) }}{{ end }}
+            {{- /* A private endpoint in the workspace's VM subnet, once its target exists. */}}
+            {{- define "privateEndpoint" }}
+            {{- $target := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $target }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: PrivateEndpoint
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ .name }}
+                crossplane.io/external-name: {{ printf "pe-%s" .peName }}
+            spec:
+              forProvider:
+                location: {{ .env.location | quote }}
+                resourceGroupName: {{ .env.resourceGroup | quote }}
+                subnetIdSelector:
+                  matchLabels:
+                    kubetre.io/workspace: {{ .ws | quote }}
+                    kubetre.io/role: vm-subnet
+                privateServiceConnection:
+                  name: {{ printf "psc-%s" .peName | quote }}
+                  isManualConnection: false
+                  privateConnectionResourceId: {{ $target | quote }}
+                  subresourceNames: [{{ .subresource | quote }}]
+                privateDnsZoneGroup:
+                  name: default
+                  privateDnsZoneIds: {{ toJson .zones }}
+                tags: {{ toJson .tags }}
+            {{- end }}
+            {{- end }}
+            {{- /* Roles for workspace members on a composed resource, once it exists. */}}
+            {{- define "roleAssignments" }}
+            {{- $scope := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $scope }}
+            {{- $ctx := . }}
+            {{- range $m := .members }}
+            {{- if or (eq $m.role "owner") (not (index $ctx "ownersOnly")) }}
+            {{- range $key, $role := $ctx.roles }}
+            ---
+            apiVersion: authorization.azure.m.upbound.io/v1beta1
+            kind: RoleAssignment
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "role-%s-%s-%s" $ctx.target $key ($m.objectId | trunc 8) }}
+            spec:
+              forProvider:
+                principalId: {{ $m.objectId | quote }}
+                principalType: User
+                roleDefinitionName: {{ $role | quote }}
+                scope: {{ $scope | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /* Where the workspace's machines reach the service, for the API to show. */}}
+            {{- define "connection" }}
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: connection
+                kubetre.io/connection-uri: {{ .uri | quote }}
+                {{- with .details }}
+                kubetre.io/details: {{ toJson . | quote }}
+                {{- end }}
+              labels:
+                kubetre.io/service: {{ .svc | quote }}
+            spec:
+              type: ExternalName
+              externalName: {{ .host | quote }}
+            {{- end }}
+            {{- $server := printf "mysql-%s" $id }}
+            ---
+            apiVersion: dbformysql.azure.m.upbound.io/v1beta1
+            kind: FlexibleServer
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: server
+                crossplane.io/external-name: {{ $server }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                version: {{ $p.version | quote }}
+                skuName: {{ $p.skuName | quote }}
+                administratorLogin: {{ $p.adminUsername | quote }}
+                administratorPasswordSecretRef:
+                  name: {{ $p.passwordSecretName | quote }}
+                  key: password
+                publicNetworkAccess: Disabled
+                backupRetentionDays: 7
+                storage:
+                  sizeGb: {{ $p.storageGb }}
+                  autoGrowEnabled: true
+                tags: {{ toJson $tags }}
+            ---
+            apiVersion: dbformysql.azure.m.upbound.io/v1beta1
+            kind: FlexibleDatabase
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: database
+                crossplane.io/external-name: {{ $p.databaseName }}
+            spec:
+              forProvider:
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                serverNameSelector:
+                  matchControllerRef: true
+                charset: utf8mb4
+                collation: utf8mb4_unicode_ci
+            {{- template "privateEndpoint" (dict "obs" $obs "target" "server" "name" "endpoint" "peName" $server "subresource" "mysqlServer" "zones" (list $zones.mysql) "env" $env "ws" $ws "tags" $tags) }}
+            {{- template "connection" (dict "svc" $svc "host" (printf "%s.mysql.database.azure.com" $server) "uri" (printf "mysql://%s@%s.mysql.database.azure.com:3306/%s" $p.adminUsername $server $p.databaseName) "details" (dict "database" $p.databaseName "admin_username" $p.adminUsername)) }}

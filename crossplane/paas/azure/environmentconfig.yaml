@@ -1,0 +1,26 @@
+# Values the PaaS compositions add to the kubetre-azure environment, replaced per environment
+# by deploy/azure/paas from Terraform outputs.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: kubetre-azure-paas
+data:
+  tenantId: 00000000-0000-0000-0000-000000000000
+  # The VNet that workspace subnets are in, for Databricks VNet injection.
+  virtualNetworkId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/virtualNetworks/vnet-kubetre
+  # Application Insights for Azure ML sends its data here.
+  logAnalyticsWorkspaceId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.OperationalInsights/workspaces/log-kubetre
+  # Private DNS zones linked to the VNet, one per private endpoint type.
+  privateDnsZoneIds:
+    mysql: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.mysql.database.azure.com
+    sql: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.database.windows.net
+    openai: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.openai.azure.com
+    cognitiveservices: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.cognitiveservices.azure.com
+    healthcare: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.azurehealthcareapis.com
+    dicom: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.dicom.azurehealthcareapis.com
+    azureml: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.api.azureml.ms
+    notebooks: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.notebooks.azure.net
+    blob: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net
+    file: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net
+    vault: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net
+    databricks: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-kubetre/providers/Microsoft.Network/privateDnsZones/privatelink.azuredatabricks.net

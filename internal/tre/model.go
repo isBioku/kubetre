@@ -11,6 +11,7 @@ import (
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
 	"github.com/isBioku/kubetre/internal/access"
+	"github.com/isBioku/kubetre/internal/controller"
 )
 
 // AzureTRE resource types.
@@ -22,7 +23,7 @@ const (
 
 // Annotations KubeTRE keeps for AzureTRE fields that have no place in the spec.
 const (
-	annCreatedBy = "kubetre.io/created-by"
+	annCreatedBy = controller.AnnotationCreatedBy
 	annOverview  = "kubetre.io/overview"
 )
 
@@ -191,7 +192,7 @@ func str(v any) string {
 
 // annOwnerID records the owner's Entra object ID, which AzureTRE's UI compares with the
 // signed-in account to tell "my" user resources apart.
-const annOwnerID = "kubetre.io/owner-id"
+const annOwnerID = controller.AnnotationOwnerID
 
 // userID is the ID AzureTRE's UI knows the caller by: the Entra object ID when present.
 func userID(id access.Identity) string {

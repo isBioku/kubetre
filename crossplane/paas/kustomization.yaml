@@ -1,0 +1,20 @@
+# The optional PaaS workspace services: providers, XRDs and compositions. Installed by
+# deploy/azure/paas when paas_services_enabled is set in infra/azure.
+resources:
+  - install
+  - rbac.yaml
+  - xrd-sqldatabase.yaml
+  - xrd-mysqldatabase.yaml
+  - xrd-openaiservice.yaml
+  - xrd-healthdataservice.yaml
+  - xrd-mlworkspace.yaml
+  - xrd-mlcomputeinstance.yaml
+  - xrd-databricksworkspace.yaml
+  - azure/composition-sqldatabase.yaml
+  - azure/composition-mysqldatabase.yaml
+  - azure/composition-openaiservice.yaml
+  - azure/composition-healthdataservice.yaml
+  - azure/composition-mlworkspace.yaml
+  - azure/composition-mlcomputeinstance.yaml
+  - azure/composition-databricksworkspace.yaml
+  - azure/environmentconfig.yaml

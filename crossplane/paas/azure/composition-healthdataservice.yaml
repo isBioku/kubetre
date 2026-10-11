@@ -1,0 +1,184 @@
+# An Azure Health Data Services workspace with a FHIR R4 service and, optionally, a DICOM
+# service, reached through a private endpoint in the workspace's subnet. Members get
+# "FHIR Data Contributor" (and "DICOM Data Owner") and sign in with Entra ID.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: healthdataservice-azure
+  labels:
+    kubetre.io/cloud: azure
+  annotations:
+    # The Go templates below must reach Crossplane verbatim, untouched by Flux substitution.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  compositeTypeRef:
+    apiVersion: platform.kubetre.io/v1alpha1
+    kind: HealthDataService
+  mode: Pipeline
+  pipeline:
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: kubetre-azure
+            - type: Reference
+              ref:
+                name: kubetre-azure-paas
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        options: [missingkey=error]
+        inline:
+          template: |
+            {{- $env := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $xr := .observed.composite.resource }}
+            {{- $ns := $xr.metadata.namespace }}
+            {{- $ws := trimPrefix "ws-" $ns }}
+            {{- $p := $xr.spec.parameters }}
+            {{- $id := $p.id }}
+            {{- $svc := index ($xr.metadata.labels | default dict) "kubetre.io/service" | default $xr.metadata.name }}
+            {{- $obs := index .observed "resources" | default dict }}
+            {{- $zones := $env.privateDnsZoneIds }}
+            {{- $tags := dict "kubetre-workspace" $ws "kubetre-service" $svc }}
+            {{- range $k, $v := (index $env "tags" | default dict) }}{{ $_ := set $tags $k $v }}{{ end }}
+            {{- $members := index $p "members" | default list }}
+            {{- define "observedId" }}{{ dig "resource" "status" "atProvider" "id" "" (index .obs .name | default dict) }}{{ end }}
+            {{- /* A private endpoint in the workspace's VM subnet, once its target exists. */}}
+            {{- define "privateEndpoint" }}
+            {{- $target := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $target }}
+            ---
+            apiVersion: network.azure.m.upbound.io/v1beta1
+            kind: PrivateEndpoint
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ .name }}
+                crossplane.io/external-name: {{ printf "pe-%s" .peName }}
+            spec:
+              forProvider:
+                location: {{ .env.location | quote }}
+                resourceGroupName: {{ .env.resourceGroup | quote }}
+                subnetIdSelector:
+                  matchLabels:
+                    kubetre.io/workspace: {{ .ws | quote }}
+                    kubetre.io/role: vm-subnet
+                privateServiceConnection:
+                  name: {{ printf "psc-%s" .peName | quote }}
+                  isManualConnection: false
+                  privateConnectionResourceId: {{ $target | quote }}
+                  subresourceNames: [{{ .subresource | quote }}]
+                privateDnsZoneGroup:
+                  name: default
+                  privateDnsZoneIds: {{ toJson .zones }}
+                tags: {{ toJson .tags }}
+            {{- end }}
+            {{- end }}
+            {{- /* Roles for workspace members on a composed resource, once it exists. */}}
+            {{- define "roleAssignments" }}
+            {{- $scope := include "observedId" (dict "obs" .obs "name" .target) }}
+            {{- if $scope }}
+            {{- $ctx := . }}
+            {{- range $m := .members }}
+            {{- if or (eq $m.role "owner") (not (index $ctx "ownersOnly")) }}
+            {{- range $key, $role := $ctx.roles }}
+            ---
+            apiVersion: authorization.azure.m.upbound.io/v1beta1
+            kind: RoleAssignment
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: {{ printf "role-%s-%s-%s" $ctx.target $key ($m.objectId | trunc 8) }}
+            spec:
+              forProvider:
+                principalId: {{ $m.objectId | quote }}
+                principalType: User
+                roleDefinitionName: {{ $role | quote }}
+                scope: {{ $scope | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /* Where the workspace's machines reach the service, for the API to show. */}}
+            {{- define "connection" }}
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: connection
+                kubetre.io/connection-uri: {{ .uri | quote }}
+                {{- with .details }}
+                kubetre.io/details: {{ toJson . | quote }}
+                {{- end }}
+              labels:
+                kubetre.io/service: {{ .svc | quote }}
+            spec:
+              type: ExternalName
+              externalName: {{ .host | quote }}
+            {{- end }}
+            {{- $hds := printf "hds%s" $id }}
+            {{- $dicom := index $p "dicom" | default false }}
+            ---
+            apiVersion: healthcareapis.azure.m.upbound.io/v1beta1
+            kind: HealthcareWorkspace
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: workspace
+                crossplane.io/external-name: {{ $hds }}
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                tags: {{ toJson $tags }}
+            ---
+            apiVersion: healthcareapis.azure.m.upbound.io/v1beta1
+            kind: HealthcareFHIRService
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: fhir
+                crossplane.io/external-name: fhir
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                resourceGroupName: {{ $env.resourceGroup | quote }}
+                workspaceIdSelector:
+                  matchControllerRef: true
+                kind: fhir-R4
+                authentication:
+                  authority: {{ printf "https://login.microsoftonline.com/%s" $env.tenantId | quote }}
+                  audience: {{ printf "https://%s-fhir.fhir.azurehealthcareapis.com" $hds | quote }}
+                tags: {{ toJson $tags }}
+            {{- if $dicom }}
+            ---
+            apiVersion: healthcareapis.azure.m.upbound.io/v1beta1
+            kind: HealthcareDICOMService
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: dicom
+                crossplane.io/external-name: dicom
+            spec:
+              forProvider:
+                location: {{ $env.location | quote }}
+                workspaceIdSelector:
+                  matchControllerRef: true
+                publicNetworkAccessEnabled: false
+                tags: {{ toJson $tags }}
+            {{- end }}
+            {{- template "privateEndpoint" (dict "obs" $obs "target" "workspace" "name" "endpoint" "peName" $hds "subresource" "healthcareworkspace" "zones" (list $zones.healthcare $zones.dicom) "env" $env "ws" $ws "tags" $tags) }}
+            {{- template "roleAssignments" (dict "obs" $obs "target" "fhir" "members" $members "roles" (dict "fhir" "FHIR Data Contributor")) }}
+            {{- if $dicom }}
+            {{- template "roleAssignments" (dict "obs" $obs "target" "dicom" "members" $members "roles" (dict "dicom" "DICOM Data Owner")) }}
+            {{- end }}
+            {{- $details := dict "fhir" (printf "https://%s-fhir.fhir.azurehealthcareapis.com" $hds) "authentication" "Microsoft Entra ID" }}
+            {{- if $dicom }}{{ $_ := set $details "dicom" (printf "https://%s-dicom.dicom.azurehealthcareapis.com" $hds) }}{{ end }}
+            {{- template "connection" (dict "svc" $svc "host" (printf "%s-fhir.fhir.azurehealthcareapis.com" $hds) "uri" (printf "https://%s-fhir.fhir.azurehealthcareapis.com" $hds) "details" $details) }}

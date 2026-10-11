@@ -29,6 +29,10 @@ rules:
   - apiGroups: [platform.kubetre.io]
     resources: [researchvms]
     verbs: [get, list, watch, create, update, patch, delete]
+  # Azure PaaS services (charts/azure-paas), when the PaaS stage is installed.
+  - apiGroups: [platform.kubetre.io]
+    resources: [sqldatabases, mysqldatabases, openaiservices, healthdataservices, mlworkspaces, mlcomputeinstances, databricksworkspaces]
+    verbs: [get, list, watch, create, update, patch, delete]
   # KubeVirt VMs (charts/kubevirt-vm). KubeVirt checks that whoever creates a VM may also
   # create the DataVolumes its disks come from.
   - apiGroups: [kubevirt.io]

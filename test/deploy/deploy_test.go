@@ -60,6 +60,9 @@ var values = map[string]string{
 	"AIRLOCK_MALWARE_SCANNING": `"false"`,
 	"GITEA_ILB_IP":             "10.224.9.21",
 	"MIRROR_UPSTREAM_FQDNS":    `[{"matchName":"pypi.org"},{"matchName":"github.com"}]`,
+	"VNET_ID":                  "/subscriptions/0/resourceGroups/rg-kubetre-dev/providers/Microsoft.Network/virtualNetworks/vnet-kubetre-dev",
+	"LOG_ANALYTICS_ID":         "/subscriptions/0/resourceGroups/rg-kubetre-dev/providers/Microsoft.OperationalInsights/workspaces/log-kubetre-dev",
+	"PRIVATE_DNS_ZONE_IDS":     `{"sql":"/subscriptions/0/z/sql","blob":"/subscriptions/0/z/blob"}`,
 	"GATEWAY_ILB_IP":           "10.224.9.10",
 	"ILB_SUBNET_NAME":          "snet-shared-ilb",
 	"VM_SIZE_SMALL":            "Standard_D2s_v5",
@@ -68,7 +71,7 @@ var values = map[string]string{
 }
 
 // stages are the Flux kustomizations in apply order.
-var stages = []string{"crossplane", "packages", "edge", "platform", "gateway", "kubevirt"}
+var stages = []string{"crossplane", "packages", "edge", "platform", "gateway", "kubevirt", "paas"}
 
 // terraformSubstitutions reads the keys of local.gitops_substitutions from gitops.tf.
 func terraformSubstitutions(t *testing.T) map[string]bool {
@@ -404,4 +407,28 @@ func TestConfigurationReferenceCoversEveryVariable(t *testing.T) {
 			t.Errorf("docs/admin/configuration.md does not document variable %s", m[1])
 		}
 	}
+}
+
+// The PaaS environment's private DNS zones arrive as a map, and its IDs from Terraform.
+func TestPaaSEnvironmentConfigTypes(t *testing.T) {
+	for _, u := range docs(build(t, "paas")) {
+		if u.GetKind() != "EnvironmentConfig" {
+			continue
+		}
+		raw, _ := yaml.Marshal(u.Object)
+		text := placeholder.ReplaceAllStringFunc(string(raw), func(m string) string { return values[m[2:len(m)-1]] })
+		sub := map[string]any{}
+		if err := yaml.Unmarshal([]byte(text), &sub); err != nil {
+			t.Fatal(err)
+		}
+		data := sub["data"].(map[string]any)
+		if zones, ok := data["privateDnsZoneIds"].(map[string]any); !ok || zones["sql"] != "/subscriptions/0/z/sql" {
+			t.Errorf("privateDnsZoneIds must be a map: %#v", data["privateDnsZoneIds"])
+		}
+		if data["tenantId"] != values["AZURE_TENANT_ID"] || data["virtualNetworkId"] != values["VNET_ID"] {
+			t.Errorf("data = %v", data)
+		}
+		return
+	}
+	t.Fatal("no EnvironmentConfig in the paas stage")
 }

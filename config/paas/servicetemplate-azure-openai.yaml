@@ -1,0 +1,58 @@
+# AzureTRE's Azure OpenAI workspace service, through Crossplane (crossplane/paas).
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: azure-openai
+spec:
+  kind: WorkspaceService
+  displayName: Azure OpenAI
+  description: An Azure OpenAI model for this workspace, reached from its machines through a private endpoint. Sign
+    in with Microsoft Entra ID; there are no API keys.
+  requiredPodSecurity: restricted
+  requiresVirtualMachines: true
+  allowedFQDNs:
+  - login.microsoftonline.com
+  - aadcdn.msftauth.net
+  - aadcdn.msauth.net
+  chart:
+    url: oci://registry.example.org/charts/azure-paas
+    version: 0.1.0
+    provider: azure
+  values:
+    kind: OpenAIService
+  valuesSchema:
+    type: object
+    properties:
+      modelName:
+        type: string
+        title: Model
+        default: gpt-4o-mini
+        pattern: ^[a-z0-9.-]{1,64}$
+      modelVersion:
+        type: string
+        title: Model version
+        default: '2024-07-18'
+        pattern: ^[0-9A-Za-z.-]{1,32}$
+      deploymentSku:
+        type: string
+        title: Deployment type
+        enum:
+        - GlobalStandard
+        - DataZoneStandard
+        - Standard
+        default: DataZoneStandard
+        description: Standard keeps processing in the region; DataZoneStandard in the geography (for example the
+          EU); GlobalStandard anywhere.
+      capacity:
+        type: integer
+        title: Capacity (thousands of tokens per minute)
+        minimum: 1
+        maximum: 1000
+        default: 10
+        updateable: true
+      location:
+        type: string
+        title: Region
+        description: Leave empty for the TRE's region. Set it if the model is not offered there.
+        default: ''
+    additionalProperties: false

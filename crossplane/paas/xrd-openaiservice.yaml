@@ -1,0 +1,101 @@
+# An Azure OpenAI account with one model deployment, reached through a private endpoint in the workspace's subnet. Entra ID sign-in only.
+# Created by the azure-paas chart.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: openaiservices.platform.kubetre.io
+spec:
+  scope: Namespaced
+  group: platform.kubetre.io
+  names:
+    kind: OpenAIService
+    plural: openaiservices
+  defaultCompositionRef:
+    name: openaiservice-azure
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    additionalPrinterColumns:
+    - name: Model
+      type: string
+      jsonPath: .spec.parameters.modelName
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - parameters
+            properties:
+              parameters:
+                type: object
+                required:
+                - id
+                - modelName
+                - modelVersion
+                - deploymentSku
+                - capacity
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9]{10}$
+                    description: Stable suffix for Azure resource names, derived by the chart from the namespace and release.
+                  members:
+                    type: array
+                    description: Workspace owners and researchers with known Entra object IDs, granted roles on the service.
+                    items:
+                      type: object
+                      required:
+                      - objectId
+                      - role
+                      properties:
+                        objectId:
+                          type: string
+                          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                        email:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                          - owner
+                          - researcher
+                  creator:
+                    type: object
+                    description: Who created the service.
+                    properties:
+                      objectId:
+                        type: string
+                      email:
+                        type: string
+                  location:
+                    type: string
+                    description: Azure region, if the model is not offered in the TRE's region.
+                  modelName:
+                    type: string
+                    pattern: ^[a-z0-9.-]{1,64}$
+                  modelVersion:
+                    type: string
+                    pattern: ^[0-9A-Za-z.-]{1,32}$
+                  deploymentSku:
+                    type: string
+                    enum:
+                    - Standard
+                    - GlobalStandard
+                    - DataZoneStandard
+                  capacity:
+                    type: integer
+                    minimum: 1
+                    maximum: 1000
+                    description: Thousands of tokens per minute.
+                x-kubernetes-validations:
+                - rule: self.id == oldSelf.id
+                  message: id is immutable
+          status:
+            type: object
+            properties:
+              endpoint:
+                type: string

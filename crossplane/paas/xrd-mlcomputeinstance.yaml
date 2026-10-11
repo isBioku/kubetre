@@ -1,0 +1,92 @@
+# A personal Azure ML compute instance in the workspace's subnet, without a public IP.
+# Created by the azure-paas chart.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: mlcomputeinstances.platform.kubetre.io
+spec:
+  scope: Namespaced
+  group: platform.kubetre.io
+  names:
+    kind: MLComputeInstance
+    plural: mlcomputeinstances
+  defaultCompositionRef:
+    name: mlcomputeinstance-azure
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    additionalPrinterColumns:
+    - name: Size
+      type: string
+      jsonPath: .spec.parameters.vmSize
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - parameters
+            properties:
+              parameters:
+                type: object
+                required:
+                - id
+                - parentService
+                - vmSize
+                - creator
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[a-z0-9]{10}$
+                    description: Stable suffix for Azure resource names, derived by the chart from the namespace and release.
+                  members:
+                    type: array
+                    description: Workspace owners and researchers with known Entra object IDs, granted roles on the service.
+                    items:
+                      type: object
+                      required:
+                      - objectId
+                      - role
+                      properties:
+                        objectId:
+                          type: string
+                          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                        email:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                          - owner
+                          - researcher
+                  creator:
+                    type: object
+                    description: Who created the service.
+                    properties:
+                      objectId:
+                        type: string
+                      email:
+                        type: string
+                  parentService:
+                    type: string
+                    description: The Azure ML workspace service it belongs to.
+                  vmSize:
+                    type: string
+                    enum:
+                    - Standard_DS3_v2
+                    - Standard_D4s_v5
+                    - Standard_E4s_v5
+                    - Standard_NC4as_T4_v3
+                x-kubernetes-validations:
+                - rule: self.creator.objectId.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+                  message: 'the owner''s Entra object ID is required: the instance is assigned to them'
+                - rule: self.id == oldSelf.id
+                  message: id is immutable
+          status:
+            type: object
+            properties:
+              endpoint:
+                type: string

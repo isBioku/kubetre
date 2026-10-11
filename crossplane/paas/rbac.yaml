@@ -1,0 +1,12 @@
+# PaaS compositions also write an ExternalName Service in the workspace namespace that tells
+# the API where the workspace's machines reach the service. Crossplane needs to manage them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane-kubetre-connection-services
+  labels:
+    rbac.crossplane.io/aggregate-to-crossplane: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

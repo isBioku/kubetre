@@ -126,13 +126,31 @@ func buildTemplate(name, title, description, version, resourceType string, param
 	if len(params) > 0 {
 		_ = json.Unmarshal(params, &sch)
 	}
+	ui := map[string]any{}
+	writeOnly := map[string]bool{}
 	for k, v := range sch.Properties {
 		if isUpdate {
 			if u, _ := v["updateable"].(bool); !u {
 				v["readOnly"] = true
 			}
 		}
+		// Secrets such as passwords are typed blind and never shown again; leaving one empty
+		// on update keeps it.
+		if w, _ := v["writeOnly"].(bool); w {
+			ui[k] = map[string]any{"ui:widget": "password"}
+			writeOnly[k] = true
+		}
 		props[k] = v
+	}
+	allRequired := append(required, sch.Required...)
+	if isUpdate {
+		kept := []string{}
+		for _, k := range allRequired {
+			if !writeOnly[k] {
+				kept = append(kept, k)
+			}
+		}
+		allRequired = kept
 	}
 	order := []string{"display_name", "description", "overview"}
 	var rest []string
@@ -145,10 +163,31 @@ func buildTemplate(name, title, description, version, resourceType string, param
 	return templateJSON{
 		Schema: "http://json-schema.org/draft-07/schema", SchemaID: "https://kubetre.io/templates/" + name + ".json",
 		ID: name, Name: name, Type: "object", Title: title, Description: description, Version: version,
-		ResourceType: resourceType, Current: true, Required: append(required, sch.Required...), Properties: props,
+		ResourceType: resourceType, Current: true, Required: allRequired, Properties: props,
 		SystemProperties: map[string]any{}, Actions: []any{}, CustomActions: []any{},
-		UISchema: map[string]any{"ui:order": append(order, rest...)},
+		UISchema: withOrder(ui, append(order, rest...)),
 	}
+}
+
+func withOrder(ui map[string]any, order []string) map[string]any {
+	ui["ui:order"] = order
+	return ui
+}
+
+// writeOnlyKeys lists a schema's properties marked writeOnly, such as passwords. The API
+// accepts them but never returns them.
+func writeOnlyKeys(schema []byte) []string {
+	var sch struct {
+		Properties map[string]map[string]any `json:"properties"`
+	}
+	_ = json.Unmarshal(schema, &sch)
+	var out []string
+	for k, v := range sch.Properties {
+		if w, _ := v["writeOnly"].(bool); w {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 func isUpdate(r *http.Request) bool { return r.URL.Query().Get("is_update") == "true" }

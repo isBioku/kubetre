@@ -1,0 +1,22 @@
+# The composite resource kind, set by the ServiceTemplate: SQLDatabase, MySQLDatabase,
+# OpenAIService, HealthDataService, MLWorkspace, MLComputeInstance or DatabricksWorkspace.
+kind: ""
+
+# MySQL only: the administrator's password, set by the workspace owner. It is kept in a Secret
+# and never passed to Crossplane as a parameter.
+adminPassword: ""
+
+# Every other value is passed to the composite resource as a parameter, for example skuName.
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted
+  vmSubnet: ""
+  subnets: []
+  firewallPriority: 0
+  parentService: ""
+  members: []
+  creator: {email: "", objectId: ""}
