@@ -23,7 +23,7 @@ var serviceSystemProps = map[string]bool{"display_name": true, "description": tr
 
 // Service properties KubeTRE derives and returns, never accepted as input.
 var serviceDerivedProps = map[string]bool{"connection_uri": true, "is_exposed_externally": true, "owner_id": true,
-	access.VMUsernameValue: true}
+	access.VMUsernameValue: true, access.AirlockRequestURLValue: true}
 
 func servicePath(ws, svc string) string { return workspacePath(ws) + "/workspace-services/" + svc }
 
@@ -39,6 +39,8 @@ func canSeeUserResource(roles map[string]bool, admin bool, id access.Identity, u
 
 func (s *Server) serviceJSON(ws *treV1.Workspace, svc *treV1.WorkspaceService, tmpl *treV1.ServiceTemplate) resource {
 	props := rawMap(rawOf(svc.Spec.Values))
+	// A review VM's data link is a credential; it is for the VM, not for display.
+	delete(props, access.AirlockRequestURLValue)
 	props["display_name"] = svc.Spec.DisplayName
 	props["description"] = svc.Spec.Description
 	if o := svc.Annotations[annOverview]; o != "" {

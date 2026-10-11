@@ -73,6 +73,10 @@ func TestMain(m *testing.M) {
 	if err := (&WorkspaceServiceReconciler{Client: mgr.GetClient(), Scheme: scheme}).SetupWithManager(mgr); err != nil {
 		panic(err)
 	}
+	if err := (&AirlockRequestReconciler{Client: mgr.GetClient(), Store: airlockStore, Notifier: airlockMail,
+		MalwareScanning: true, UIURL: "https://tre.example.org", ScanPoll: time.Second}).SetupWithManager(mgr); err != nil {
+		panic(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		if err := mgr.Start(ctx); err != nil {

@@ -112,9 +112,11 @@ resource "azurerm_firewall_policy_rule_collection_group" "platform" {
       }
     }
     rule {
-      name              = "platform-packages"
-      source_addresses  = local.cluster_prefixes
-      destination_fqdns = concat(var.platform_egress_fqdns, local.idp_host == "" ? [] : [local.idp_host])
+      name             = "platform-packages"
+      source_addresses = local.cluster_prefixes
+      destination_fqdns = concat(var.platform_egress_fqdns, local.idp_host == "" ? [] : [local.idp_host],
+        # The API and controller reach the external airlock account; the internal one is private.
+      ["${local.airlock_external_account}.blob.core.windows.net"])
       protocols {
         type = "Https"
         port = 443

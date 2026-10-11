@@ -86,6 +86,11 @@ spec:
                 adminPasswordSecretRef:
                   name: {{ $p.passwordSecretName | quote }}
                   key: password
+                {{- with index $p "customDataSecretName" | default "" }}
+                customDataSecretRef:
+                  name: {{ . | quote }}
+                  key: customData
+                {{- end }}
                 {{- if not $windows }}
                 disablePasswordAuthentication: false
                 {{- end }}

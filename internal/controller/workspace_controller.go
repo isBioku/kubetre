@@ -38,6 +38,8 @@ var ciliumPolicyGK = schema.GroupKind{Group: "cilium.io", Kind: "CiliumNetworkPo
 
 // WorkspaceReconciler reconciles a Workspace object.
 type WorkspaceReconciler struct {
+	// AirlockHost is the internal airlock account's hostname, which airlock workspaces may reach.
+	AirlockHost string
 	client.Client
 	Scheme *runtime.Scheme
 
@@ -232,6 +234,10 @@ func (r *WorkspaceReconciler) reconcileNetworkPolicies(ctx context.Context, ws *
 // enforced, and the default-deny policy blocks all internet egress: the workspace fails closed.
 func (r *WorkspaceReconciler) reconcileEgress(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate) error {
 	fqdns := AllowedFQDNs(tmpl, ws)
+	// Airlock workspaces reach the internal airlock account, through its private endpoint.
+	if ws.Spec.Airlock.Enabled && r.AirlockHost != "" {
+		fqdns = append(fqdns, r.AirlockHost)
+	}
 	open := tmpl.Spec.Egress.Unrestricted
 
 	if _, err := r.RESTMapper().RESTMapping(ciliumPolicyGK, "v2"); err != nil {

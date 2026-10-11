@@ -477,3 +477,25 @@ func TestUnrestrictedWorkspaceNetwork(t *testing.T) {
 		t.Errorf("a restricted workspace must have no open network rule, got %v", nrc)
 	}
 }
+
+// Workspace VMs may reach the internal airlock account's private endpoint, and only on HTTPS.
+func TestWorkspaceVMsReachTheAirlockEndpoint(t *testing.T) {
+	params := map[string]any{"addressPrefix": "10.240.0.192/26", "firewallPriority": float64(1003), "allowedFQDNs": []any{"pypi.org"}}
+	composed, _ := render(t, "composition-workspacenetwork.yaml", xr("WorkspaceNetwork", "vm-network", params), nil)
+	got := submit(t, composed)
+	rules, _, _ := unstructured.NestedSlice(got["nsg"].Object, "spec", "forProvider", "securityRule")
+	want := environment(t)["airlockPrivateIp"].(string) + "/32"
+	for _, r := range rules {
+		rule := r.(map[string]any)
+		if rule["name"] == "allow-airlock-out" {
+			if rule["destinationAddressPrefix"] != want || rule["destinationPortRange"] != "443" || rule["direction"] != "Outbound" {
+				t.Fatalf("airlock rule = %v", rule)
+			}
+			if p := rule["priority"].(float64); p >= 4000 {
+				t.Fatalf("the airlock rule must come before the VNet deny, priority %v", p)
+			}
+			return
+		}
+	}
+	t.Fatalf("no airlock rule in %v", rules)
+}

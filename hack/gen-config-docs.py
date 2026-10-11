@@ -16,6 +16,7 @@ groups = [
                  "fqdn_filtering_enabled", "defender_enabled", "host_encryption_enabled",
                  "log_retention_days"]),
     ("Research VMs", ["research_vm_sizes", "kubevirt_enabled", "kubevirt_vm_size", "kubevirt_node_count"]),
+    ("Airlock", ["airlock_malware_scanning_enabled", "airlock_malware_scanning_cap_gb"]),
     ("Identity", ["oidc_issuer", "oidc_audience", "roles_claim", "gateway_hostname",
                   "gateway_oidc_client_id", "ui_client_id"]),
     ("GitOps and version", ["gitops_repository_url", "gitops_branch", "gitops_path", "kubetre_version"]),

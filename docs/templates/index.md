@@ -34,7 +34,6 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 AzureTRE ships many more templates. KubeTRE has no equivalent yet for these, so they do not
 appear in the UI:
 
-- **Workspaces:** Airlock Import Review.
 - **Workspace services:** Azure ML, Azure Databricks, Gitea, Health Services, OHDSI, MySQL,
   Azure SQL, Azure OpenAI.
 - **Shared services:** CycleCloud.

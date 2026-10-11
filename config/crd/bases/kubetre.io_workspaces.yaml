@@ -55,6 +55,51 @@ spec:
           spec:
             description: WorkspaceSpec is the desired state of a Workspace.
             properties:
+              airlock:
+                description: Airlock configures moving files into and out of the workspace.
+                properties:
+                  enabled:
+                    description: Enabled lets members create import and export requests.
+                    type: boolean
+                  review:
+                    description: Review says where airlock managers' review VMs are
+                      created, per request type.
+                    properties:
+                      export:
+                        description: Export review VMs run in the request's own workspace.
+                          Workspace is ignored.
+                        properties:
+                          service:
+                            minLength: 1
+                            type: string
+                          template:
+                            minLength: 1
+                            type: string
+                          workspace:
+                            type: string
+                        required:
+                        - service
+                        - template
+                        type: object
+                      import:
+                        description: |-
+                          Import review VMs run in a separate import review workspace, so unapproved data never
+                          enters the research workspace.
+                        properties:
+                          service:
+                            minLength: 1
+                            type: string
+                          template:
+                            minLength: 1
+                            type: string
+                          workspace:
+                            type: string
+                        required:
+                        - service
+                        - template
+                        type: object
+                    type: object
+                type: object
               airlockManagers:
                 description: AirlockManagers review data entering and leaving the
                   workspace.

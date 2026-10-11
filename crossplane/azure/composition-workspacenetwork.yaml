@@ -96,6 +96,11 @@ spec:
                   - {name: allow-internet-https-out, priority: 120, direction: Outbound, access: Allow, protocol: Tcp,
                      sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
                      destinationAddressPrefix: Internet, destinationPortRange: "443"}
+                  {{- with index $env "airlockPrivateIp" | default "" }}
+                  - {name: allow-airlock-out, priority: 105, direction: Outbound, access: Allow, protocol: Tcp,
+                     sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",
+                     destinationAddressPrefix: {{ printf "%s/32" . | quote }}, destinationPortRange: "443"}
+                  {{- end }}
                   {{- if $open }}
                   - {name: allow-internet-all-out, priority: 115, direction: Outbound, access: Allow, protocol: "*",
                      sourceAddressPrefix: {{ $prefix | quote }}, sourcePortRange: "*",

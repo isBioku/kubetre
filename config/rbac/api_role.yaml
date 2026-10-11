@@ -10,3 +10,10 @@ rules:
   - apiGroups: ["kubetre.io"]
     resources: ["workspaces", "workspaceservices"]
     verbs: ["get", "list", "watch", "create", "update", "delete"]
+  # Airlock requests: the API records what users do; the controller moves the data.
+  - apiGroups: ["kubetre.io"]
+    resources: ["airlockrequests"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["kubetre.io"]
+    resources: ["airlockrequests/status"]
+    verbs: ["get", "update", "patch"]

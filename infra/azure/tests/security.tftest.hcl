@@ -30,6 +30,9 @@ mock_provider "azurerm" {
   mock_resource "azurerm_container_registry" {
     defaults = { id = "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetretest/providers/Microsoft.ContainerRegistry/registries/acrkubetretest" }
   }
+  mock_resource "azurerm_storage_account" {
+    defaults = { id = "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetretest/providers/Microsoft.Storage/storageAccounts/stalkubetretest" }
+  }
   mock_resource "azurerm_log_analytics_workspace" {
     defaults = { id = "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-kubetretest/providers/Microsoft.OperationalInsights/workspaces/log-kubetretest" }
   }
@@ -380,5 +383,42 @@ run "kubevirt_runs_on_its_own_tainted_pool" {
   assert {
     condition     = one([for k in azurerm_kubernetes_flux_configuration.kubetre[0].kustomizations : k.depends_on if k.name == "kubevirt"]) == tolist(["platform"])
     error_message = "The KubeVirt stage must follow the platform stage, which defines ServiceTemplate."
+  }
+}
+
+run "airlock_storage_is_locked_down" {
+  command = apply
+
+  assert {
+    condition     = alltrue([for k, a in azurerm_storage_account.airlock : !a.shared_access_key_enabled && a.min_tls_version == "TLS1_2" && !a.allow_nested_items_to_be_public])
+    error_message = "Airlock storage must use Entra ID only, TLS 1.2 and no public blobs."
+  }
+  assert {
+    condition     = azurerm_storage_account.airlock["internal"].public_network_access == "Disabled"
+    error_message = "The internal airlock account must have no public network access."
+  }
+  assert {
+    condition     = azurerm_private_endpoint.airlock_internal.ip_configuration[0].private_ip_address == output.gitops_substitutions.AIRLOCK_INTERNAL_IP
+    error_message = "Workspace security groups must be told the internal airlock endpoint's fixed address."
+  }
+  assert {
+    condition     = toset([for k, r in azurerm_role_assignment.airlock_data : r.scope]) == toset([for k, a in azurerm_storage_account.airlock : a.id])
+    error_message = "The airlock identity's data rights must be limited to the two airlock accounts."
+  }
+  assert {
+    condition     = length(azurerm_security_center_storage_defender.airlock) == 0
+    error_message = "Malware scanning is billed per GB and must be opted into."
+  }
+}
+
+run "airlock_malware_scanning_can_be_enabled" {
+  command = apply
+  variables {
+    airlock_malware_scanning_enabled = true
+  }
+
+  assert {
+    condition     = length(azurerm_security_center_storage_defender.airlock) == 2 && alltrue([for d in azurerm_security_center_storage_defender.airlock : d.malware_scanning_on_upload_enabled])
+    error_message = "Both airlock accounts must scan uploads when scanning is enabled."
   }
 }

@@ -23,11 +23,12 @@ import (
 var workspaceSystemProps = map[string]bool{
 	"display_name": true, "description": true, "overview": true,
 	"owners": true, "researchers": true, "airlock_managers": true, "allowed_fqdns": true,
+	"enable_airlock": true, "airlock_review_config": true,
 }
 
 // Properties KubeTRE derives and returns, never accepted as input.
 var workspaceDerivedProps = map[string]bool{
-	"scope_id": true, "enable_airlock": true, "vm_subnet": true, "kubernetes_namespace": true,
+	"scope_id": true, "airlock_version": true, "vm_subnet": true, "kubernetes_namespace": true,
 }
 
 var fqdnPattern = regexp.MustCompile(`^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
@@ -46,7 +47,11 @@ func (s *Server) workspaceJSON(ws *treV1.Workspace, templateVersion string, id a
 	props["airlock_managers"] = toAny(ws.Spec.AirlockManagers)
 	props["allowed_fqdns"] = toAny(ws.Spec.Egress.AllowedFQDNs)
 	props["scope_id"] = s.APIScope
-	props["enable_airlock"] = false
+	props["enable_airlock"] = s.Airlock != nil && ws.Spec.Airlock.Enabled
+	props["airlock_version"] = 2
+	if rc := reviewConfigJSON(ws.Spec.Airlock.Review); len(rc) > 0 {
+		props["airlock_review_config"] = rc
+	}
 	if ws.Status.Namespace != "" {
 		props["kubernetes_namespace"] = ws.Status.Namespace
 	}
@@ -219,6 +224,7 @@ func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request, id acce
 	if o := str(system["overview"]); o != "" {
 		ws.Annotations[annOverview] = o
 	}
+	ws.Spec.Airlock = airlockSpecFrom(system, treV1.AirlockSpec{Enabled: s.Airlock != nil})
 	if err := s.Client.Create(r.Context(), ws); err != nil {
 		if apierrors.IsInvalid(err) {
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
@@ -282,6 +288,7 @@ func (s *Server) patchWorkspace(w http.ResponseWriter, r *http.Request, id acces
 		if v, ok := system["airlock_managers"]; ok {
 			ws.Spec.AirlockManagers = stringList(v)
 		}
+		ws.Spec.Airlock = airlockSpecFrom(system, ws.Spec.Airlock)
 		if v, ok := system["allowed_fqdns"]; ok {
 			fqdns := stringList(v)
 			if err := validFQDNs(fqdns); err != nil {
@@ -290,19 +297,27 @@ func (s *Server) patchWorkspace(w http.ResponseWriter, r *http.Request, id acces
 			}
 			ws.Spec.Egress.AllowedFQDNs = fqdns
 		}
-		merged := rawMap(rawOf(ws.Spec.Parameters))
-		for k, v := range params {
-			merged[k] = v
-		}
-		raw, _ := json.Marshal(merged)
-		tmpl := &treV1.WorkspaceTemplate{}
-		if err := s.Client.Get(r.Context(), types.NamespacedName{Name: ws.Spec.TemplateRef}, tmpl); err == nil {
+		if len(params) > 0 {
+			tmpl := &treV1.WorkspaceTemplate{}
+			if err := s.Client.Get(r.Context(), types.NamespacedName{Name: ws.Spec.TemplateRef}, tmpl); err != nil {
+				s.internal(w, "get template", err)
+				return
+			}
+			merged := rawMap(rawOf(ws.Spec.Parameters))
+			for k, v := range params {
+				if !paramUpdateable(rawOf(tmpl.Spec.ParametersSchema), k) && fmt.Sprint(merged[k]) != fmt.Sprint(v) {
+					writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("%s cannot be changed after creation", k))
+					return
+				}
+				merged[k] = v
+			}
+			raw, _ := json.Marshal(merged)
 			if err := schema.Validate("workspace-"+tmpl.Name, rawOf(tmpl.Spec.ParametersSchema), raw); err != nil {
 				writeError(w, http.StatusUnprocessableEntity, "properties do not match the template: "+err.Error())
 				return
 			}
+			ws.Spec.Parameters = &apiextensionsv1.JSON{Raw: raw}
 		}
-		ws.Spec.Parameters = &apiextensionsv1.JSON{Raw: raw}
 	}
 	if err := s.Client.Update(r.Context(), ws); err != nil {
 		if apierrors.IsConflict(err) {
@@ -337,4 +352,43 @@ func (s *Server) deleteWorkspace(w http.ResponseWriter, r *http.Request, id acce
 	s.logger().Info("workspace deletion requested", "workspace", ws.Name, "by", id.Principal())
 	writeJSON(w, http.StatusAccepted, map[string]any{"operation": newOperation(uid, actionUninstall, ws.Generation,
 		workspacePath(ws.Name), ws.Name, typeWorkspace, ws.Spec.TemplateRef, "deleting", "", id, s.now())})
+}
+
+// airlockSpecFrom applies AzureTRE's enable_airlock and airlock_review_config properties.
+func airlockSpecFrom(system map[string]any, cur treV1.AirlockSpec) treV1.AirlockSpec {
+	if v, ok := system["enable_airlock"].(bool); ok {
+		cur.Enabled = v
+	}
+	rc, ok := system["airlock_review_config"].(map[string]any)
+	if !ok {
+		return cur
+	}
+	if imp, ok := rc["import"].(map[string]any); ok {
+		cur.Review.Import = reviewTarget(str(imp["import_vm_workspace_id"]), str(imp["import_vm_workspace_service_id"]),
+			str(imp["import_vm_user_resource_template_name"]))
+	}
+	if exp, ok := rc["export"].(map[string]any); ok {
+		cur.Review.Export = reviewTarget("", str(exp["export_vm_workspace_service_id"]), str(exp["export_vm_user_resource_template_name"]))
+	}
+	return cur
+}
+
+func reviewTarget(ws, svc, tmpl string) *treV1.AirlockReviewTarget {
+	if strings.TrimSpace(svc) == "" || strings.TrimSpace(tmpl) == "" {
+		return nil
+	}
+	return &treV1.AirlockReviewTarget{Workspace: strings.TrimSpace(ws), Service: strings.TrimSpace(svc), Template: strings.TrimSpace(tmpl)}
+}
+
+func reviewConfigJSON(r treV1.AirlockReviewSpec) map[string]any {
+	out := map[string]any{}
+	if r.Import != nil {
+		out["import"] = map[string]any{"import_vm_workspace_id": r.Import.Workspace,
+			"import_vm_workspace_service_id": r.Import.Service, "import_vm_user_resource_template_name": r.Import.Template}
+	}
+	if r.Export != nil {
+		out["export"] = map[string]any{"export_vm_workspace_service_id": r.Export.Service,
+			"export_vm_user_resource_template_name": r.Export.Template}
+	}
+	return out
 }

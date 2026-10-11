@@ -14,6 +14,9 @@ storageClassName: ""
 size: medium
 diskGi: 32
 
+# Set by KubeTRE for airlock review VMs: a read-only link to the request's data.
+airlockRequestUrl: ""
+
 # Set by KubeTRE; do not set by hand.
 kubetre:
   workspace: ""

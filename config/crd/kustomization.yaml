@@ -3,3 +3,4 @@ resources:
   - bases/kubetre.io_workspaces.yaml
   - bases/kubetre.io_servicetemplates.yaml
   - bases/kubetre.io_workspaceservices.yaml
+  - bases/kubetre.io_airlockrequests.yaml

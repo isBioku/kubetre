@@ -19,6 +19,8 @@ data:
   accessGatewayPrefixes: ["10.224.8.0/24"]
   # Internal load balancer subnet for shared services such as the package mirror.
   sharedServicePrefixes: ["10.224.9.0/24"]
+  # The internal airlock storage account's private endpoint. VMs may reach it on HTTPS.
+  airlockPrivateIp: 10.224.11.20
   # Firewall FQDN tags every VM subnet may reach, so operating systems can patch.
   platformFqdnTags: [WindowsUpdate]
   vmSizes:

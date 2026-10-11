@@ -11,6 +11,10 @@ import (
 // to rebuild the VM.
 const VMUsernameValue = "username"
 
+// AirlockRequestURLValue is the chart value that gives a review VM a read-only link to the airlock
+// request's data. KubeTRE sets it; users cannot.
+const AirlockRequestURLValue = "airlockRequestUrl"
+
 // WithVMUsername returns values with the owner's VM account name added.
 func WithVMUsername(values []byte, owner string) ([]byte, error) {
 	m := map[string]any{}

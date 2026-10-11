@@ -28,7 +28,8 @@ Do these checks before anyone uses real data.
 These are recorded in the architecture decisions. Close them, or accept them in writing with
 your information security officer, before using sensitive data:
 
-- **Data movement.** There is no airlock, so no sanctioned way to move data in or out.
+- **Airlock network boundary.** Every airlock workspace reaches the same private endpoint;
+  requests are kept apart by their links, not by the network. See [Airlock](../overview/airlock.md).
 - **Package mirrors.** There are none, so machines reach their allowed domains directly.
 - **Certificates.** TLS certificates are installed and renewed by hand.
 - **Sessions and audit.** There is no session recording, and audit is limited to logs.

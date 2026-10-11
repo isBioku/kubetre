@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
+	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
 	"github.com/isBioku/kubetre/internal/controller"
 )
@@ -31,9 +32,10 @@ const (
 )
 
 type env struct {
-	t   *testing.T
-	srv *httptest.Server
-	c   client.Client
+	t     *testing.T
+	srv   *httptest.Server
+	c     client.Client
+	store *airlock.MemoryStore
 }
 
 func newEnv(t *testing.T, objs ...client.Object) *env {
@@ -65,12 +67,13 @@ func newEnv(t *testing.T, objs ...client.Object) *env {
 			Chart: &treV1.ChartRef{URL: "oci://r/charts/linux-desktop", Version: "0.2.0"}}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(append(base, objs...)...).
-		WithStatusSubresource(&treV1.Workspace{}, &treV1.WorkspaceService{}, &corev1.Service{}).Build()
+		WithStatusSubresource(&treV1.Workspace{}, &treV1.WorkspaceService{}, &corev1.Service{}, &treV1.AirlockRequest{}).Build()
+	store := airlock.NewMemoryStore()
 	s := &Server{Client: c, Auth: api.DevAuthenticator{}, APIScope: "api://kubetre-api",
-		GatewayURL: "https://tre.example.org/gateway", Version: "0.2.0"}
+		GatewayURL: "https://tre.example.org/gateway", Version: "0.2.0", Airlock: store}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &env{t: t, srv: srv, c: c}
+	return &env{t: t, srv: srv, c: c, store: store}
 }
 
 func (e *env) call(method, path, user, body string, headers ...string) (int, map[string]any) {
@@ -419,4 +422,29 @@ func TestSharedServices(t *testing.T) {
 	e.expect(403, "DELETE", path, owner, "")
 	e.expect(202, "DELETE", path, admin, "")
 	e.expect(404, "GET", path, admin, "")
+}
+
+func (e *env) expectArray(method, path, user string) []any {
+	e.t.Helper()
+	req, _ := http.NewRequest(method, e.srv.URL+path, nil)
+	req.Header.Set("X-Dev-User", user)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out []any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || resp.StatusCode != 200 {
+		e.t.Fatalf("%s %s: %d %v", method, path, resp.StatusCode, err)
+	}
+	return out
+}
+
+func TestWorkspaceParametersAreFixedUnlessUpdateable(t *testing.T) {
+	ws := vmWorkspace("study1")
+	ws.Spec.Parameters = &apiextensionsv1.JSON{Raw: []byte(`{"costCentre":"CC-1234"}`)}
+	e := newEnv(t, ws)
+	cur := m(e.expect(200, "GET", "/api/workspaces/study1", admin, "")["workspace"])
+	e.expect(422, "PATCH", "/api/workspaces/study1", admin, `{"properties":{"costCentre":"CC-9999"}}`, "etag", cur["_etag"].(string))
+	e.expect(202, "PATCH", "/api/workspaces/study1", admin, `{"properties":{"costCentre":"CC-1234","description":"new"}}`, "etag", cur["_etag"].(string))
 }

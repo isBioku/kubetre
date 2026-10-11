@@ -65,6 +65,13 @@ This reference is generated from `infra/azure/variables.tf` by `hack/gen-config-
 | `kubevirt_vm_size` | `"Standard_D4s_v5"` | Node size for KubeVirt VMs. It must support nested virtualization (Dv5 and Dsv5 do). |
 | `kubevirt_node_count` | `{ min = 1, max = 3 }` | Autoscaling bounds for the KubeVirt node pool. |
 
+## Airlock
+
+| Variable | Default | Description |
+|---|---|---|
+| `airlock_malware_scanning_enabled` | `false` | Scan every file uploaded to the airlock with Microsoft Defender for Storage. Files are not reviewed until scanned. Billed per GB scanned. |
+| `airlock_malware_scanning_cap_gb` | `100` | Monthly cap, in GB, on malware scanning per airlock storage account. |
+
 ## Identity
 
 | Variable | Default | Description |

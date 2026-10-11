@@ -5,7 +5,7 @@
 A personal Ubuntu 24.04 VM that runs inside the cluster on KubeVirt, opened in the browser as
 an SSH terminal. Researchers choose it instead of an Azure VM when they want a machine that
 starts faster and shares nodes. It is optional: the environment must set
-`kubevirt_enabled = true` (see [KubeVirt](../admin/kubevirt.md)).
+`kubevirt_enabled = true` (see [KubeVirt](../../admin/kubevirt.md)).
 
 ## Properties
 
@@ -36,5 +36,5 @@ starts faster and shares nodes. It is optional: the environment must set
 | Start-up | five to ten minutes | about a minute after the first disk copy |
 | Billing | per VM | shares the KubeVirt nodes |
 
-For sensitive data, prefer the Azure VM. [ADR 11](../adr/0011-kubevirt-vms.md) explains the
+For sensitive data, prefer the Azure VM. [ADR 11](../../adr/0011-kubevirt-vms.md) explains the
 trade-off.

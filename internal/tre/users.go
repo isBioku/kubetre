@@ -64,12 +64,3 @@ func (s *Server) listWorkspaceRoles(w http.ResponseWriter, r *http.Request, id a
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"roles": workspaceRoleList})
 }
-
-// Airlock is not implemented in KubeTRE yet; workspaces report enable_airlock=false, so the
-// UI hides it, and any direct request sees an empty list.
-func (s *Server) listAirlockRequests(w http.ResponseWriter, r *http.Request, id access.Identity) {
-	if _, _, ok := s.loadWorkspace(w, r, id); !ok {
-		return
-	}
-	writeJSON(w, http.StatusOK, []any{})
-}

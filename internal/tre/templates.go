@@ -61,8 +61,8 @@ func stringArray(title, description string) map[string]any {
 
 // Workspace fields every KubeTRE workspace template has. AzureTRE assigns workspace roles
 // through Entra app roles; KubeTRE keeps them on the workspace, so they are part of the form.
-func workspaceSystemSchema() (map[string]any, []string) {
-	return map[string]any{
+func workspaceSystemSchema(airlockOn bool) (map[string]any, []string) {
+	props := map[string]any{
 		"display_name": prop("Name for the workspace", "The name of the workspace to be displayed to users", nil),
 		"description":  prop("Description of the workspace", "Description of the workspace", nil),
 		"overview": prop("Workspace Overview",
@@ -73,7 +73,30 @@ func workspaceSystemSchema() (map[string]any, []string) {
 			"Email addresses of the people who work in this workspace."),
 		"allowed_fqdns": stringArray("Allowed internet domains",
 			"Extra hostnames this workspace may reach on HTTPS, for example pypi.org. A leading *. allows subdomains."),
-	}, []string{"display_name", "description"}
+	}
+	if airlockOn {
+		str := func(title string) map[string]any { return map[string]any{"type": "string", "title": title} }
+		props["airlock_managers"] = stringArray("Airlock managers",
+			"Email addresses of the people who review files going into and out of this workspace.")
+		props["enable_airlock"] = map[string]any{"type": "boolean", "title": "Enable airlock",
+			"description": "Let members import and export files through the airlock.", "default": true, "updateable": true}
+		props["airlock_review_config"] = map[string]any{
+			"type": "object", "title": "Airlock review VMs", "updateable": true,
+			"description": "Where airlock managers' review VMs are created.",
+			"properties": map[string]any{
+				"import": map[string]any{"type": "object", "title": "Import review", "properties": map[string]any{
+					"import_vm_workspace_id":                str("Import review workspace ID"),
+					"import_vm_workspace_service_id":        str("Virtual Desktops service ID in that workspace"),
+					"import_vm_user_resource_template_name": str("Review VM template, for example linux-vm"),
+				}},
+				"export": map[string]any{"type": "object", "title": "Export review", "properties": map[string]any{
+					"export_vm_workspace_service_id":        str("Virtual Desktops service ID in this workspace"),
+					"export_vm_user_resource_template_name": str("Review VM template, for example linux-vm"),
+				}},
+			},
+		}
+	}
+	return props, []string{"display_name", "description"}
 }
 
 func serviceSystemSchema(kind string) (map[string]any, []string) {
@@ -130,8 +153,8 @@ func buildTemplate(name, title, description, version, resourceType string, param
 
 func isUpdate(r *http.Request) bool { return r.URL.Query().Get("is_update") == "true" }
 
-func workspaceTemplateJSON(t *treV1.WorkspaceTemplate, update bool) templateJSON {
-	system, required := workspaceSystemSchema()
+func workspaceTemplateJSON(t *treV1.WorkspaceTemplate, update, airlockOn bool) templateJSON {
+	system, required := workspaceSystemSchema(airlockOn)
 	return buildTemplate(t.Name, t.Spec.DisplayName, t.Spec.Description, t.Spec.Version, typeWorkspace,
 		rawOf(t.Spec.ParametersSchema), system, required, update)
 }
@@ -153,10 +176,14 @@ func serviceTemplateJSON(t *treV1.ServiceTemplate, update bool) templateJSON {
 
 // updateable reports whether a template parameter may change after creation.
 func updateable(t *treV1.ServiceTemplate, key string) bool {
+	return paramUpdateable(rawOf(t.Spec.ValuesSchema), key)
+}
+
+func paramUpdateable(schema []byte, key string) bool {
 	var sch struct {
 		Properties map[string]map[string]any `json:"properties"`
 	}
-	_ = json.Unmarshal(rawOf(t.Spec.ValuesSchema), &sch)
+	_ = json.Unmarshal(schema, &sch)
 	u, _ := sch.Properties[key]["updateable"].(bool)
 	return u
 }
@@ -186,7 +213,7 @@ func (s *Server) getWorkspaceTemplate(w http.ResponseWriter, r *http.Request, _ 
 		s.internal(w, "get template", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, workspaceTemplateJSON(t, isUpdate(r)))
+	writeJSON(w, http.StatusOK, workspaceTemplateJSON(t, isUpdate(r), s.Airlock != nil))
 }
 
 func (s *Server) serviceTemplateList(r *http.Request, keep func(*treV1.ServiceTemplate) bool) ([]templateSummary, error) {

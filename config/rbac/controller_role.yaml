@@ -46,16 +46,7 @@ rules:
 - apiGroups:
   - kubetre.io
   resources:
-  - servicetemplates
-  - workspaceservices
-  - workspacetemplates
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kubetre.io
-  resources:
+  - airlockrequests
   - workspaces
   verbs:
   - get
@@ -66,18 +57,30 @@ rules:
 - apiGroups:
   - kubetre.io
   resources:
+  - airlockrequests/finalizers
   - workspaces/finalizers
   verbs:
   - update
 - apiGroups:
   - kubetre.io
   resources:
+  - airlockrequests/status
   - workspaces/status
   - workspaceservices/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - kubetre.io
+  resources:
+  - servicetemplates
+  - workspaceservices
+  - workspacetemplates
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - networking.k8s.io
   resources:

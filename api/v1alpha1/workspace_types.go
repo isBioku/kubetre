@@ -65,6 +65,42 @@ type WorkspaceSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	Enabled *bool `json:"enabled,omitempty"`
+
+	// Airlock configures moving files into and out of the workspace.
+	// +optional
+	Airlock AirlockSpec `json:"airlock,omitempty"`
+}
+
+// AirlockSpec turns the airlock on for a workspace and says where review VMs are created.
+type AirlockSpec struct {
+	// Enabled lets members create import and export requests.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Review says where airlock managers' review VMs are created, per request type.
+	// +optional
+	Review AirlockReviewSpec `json:"review,omitempty"`
+}
+
+// AirlockReviewSpec mirrors AzureTRE's airlock_review_config.
+type AirlockReviewSpec struct {
+	// Import review VMs run in a separate import review workspace, so unapproved data never
+	// enters the research workspace.
+	// +optional
+	Import *AirlockReviewTarget `json:"import,omitempty"`
+	// Export review VMs run in the request's own workspace. Workspace is ignored.
+	// +optional
+	Export *AirlockReviewTarget `json:"export,omitempty"`
+}
+
+// AirlockReviewTarget is a workspace service and the user resource template to create in it.
+type AirlockReviewTarget struct {
+	// +optional
+	Workspace string `json:"workspace,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	Service string `json:"service"`
+	// +kubebuilder:validation:MinLength=1
+	Template string `json:"template"`
 }
 
 // WorkspaceStatus is the observed state of a Workspace.

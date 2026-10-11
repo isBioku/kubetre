@@ -1,3 +1,15 @@
+# Settings for the controller. The airlock is off while the accounts are empty.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubetre-controller
+  namespace: kubetre-system
+data:
+  AIRLOCK_EXTERNAL_ACCOUNT: ""
+  AIRLOCK_INTERNAL_ACCOUNT: ""
+  AIRLOCK_MALWARE_SCANNING: "false"
+  UI_URL: ""
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,7 +22,7 @@ spec:
     matchLabels: {app.kubernetes.io/name: kubetre-controller}
   template:
     metadata:
-      labels: {app.kubernetes.io/name: kubetre-controller}
+      labels: {app.kubernetes.io/name: kubetre-controller, azure.workload.identity/use: "true"}
     spec:
       serviceAccountName: kubetre-controller
       securityContext:
@@ -27,6 +39,19 @@ spec:
             # node, pod or service CIDRs. Each workspace gets one /26.
             - --vm-address-pool=10.240.0.0/16
             - --vm-subnet-length=26
+            - --airlock-external-account=$(AIRLOCK_EXTERNAL_ACCOUNT)
+            - --airlock-internal-account=$(AIRLOCK_INTERNAL_ACCOUNT)
+            - --airlock-malware-scanning=$(AIRLOCK_MALWARE_SCANNING)
+            - --ui-url=$(UI_URL)
+          envFrom: [{configMapRef: {name: kubetre-controller}}]
+          # Optional SMTP settings for airlock notifications, for example Azure Communication
+          # Services' SMTP endpoint. Without the secret, no email is sent.
+          env:
+            - {name: SMTP_HOST, valueFrom: {secretKeyRef: {name: kubetre-airlock-smtp, key: host, optional: true}}}
+            - {name: SMTP_PORT, valueFrom: {secretKeyRef: {name: kubetre-airlock-smtp, key: port, optional: true}}}
+            - {name: SMTP_USERNAME, valueFrom: {secretKeyRef: {name: kubetre-airlock-smtp, key: username, optional: true}}}
+            - {name: SMTP_PASSWORD, valueFrom: {secretKeyRef: {name: kubetre-airlock-smtp, key: password, optional: true}}}
+            - {name: SMTP_FROM, valueFrom: {secretKeyRef: {name: kubetre-airlock-smtp, key: from, optional: true}}}
           ports:
             - {name: metrics, containerPort: 8080}
             - {name: probes, containerPort: 8081}

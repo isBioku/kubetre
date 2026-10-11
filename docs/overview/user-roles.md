@@ -10,7 +10,7 @@ KubeTRE keeps AzureTRE's roles and personas. One person can hold several.
 | TRE user (`TREUser`) | whole TRE | Entra app role on the API app | sign in to the UI |
 | Workspace owner (`WorkspaceOwner`) | one workspace | owners list on the `Workspace` | add, change and remove workspace services; see every user resource; everything a researcher can |
 | Researcher (`WorkspaceResearcher`) | one workspace | researchers list on the `Workspace` | create and manage their own user resources; connect to their own machines |
-| Airlock manager (`AirlockManager`) | one workspace | airlock managers list on the `Workspace` | nothing yet: KubeTRE has no airlock |
+| Airlock manager (`AirlockManager`) | one workspace | airlock managers list on the `Workspace` | review, approve, reject and revoke airlock requests; create review VMs |
 
 How this differs from AzureTRE:
 
@@ -33,10 +33,10 @@ How this differs from AzureTRE:
 | TRE administrator | Creates and manages workspaces and their members in the UI. Needs no Azure or Kubernetes access. |
 | Workspace owner | Adds workspace services and oversees the workspace's machines. |
 | Researcher | Creates their own machines and works in them. Installs packages from allowed domains. |
-| Airlock manager | Will review imports and exports once the airlock exists. |
+| Airlock manager | Reviews files going into and out of a workspace, in review VMs if needed. See [Airlock](airlock.md). |
 | TRE service integrator | Adds new tools as templates: a Helm chart plus a `ServiceTemplate`, and Crossplane compositions for cloud resources. See [Authoring templates](../developers/authoring-templates.md). |
 | KubeTRE developer | Changes the controller, API, gateway or UI. See [Developers](../developers/index.md). |
-| Data engineer | Builds pipelines between the data platform and the TRE. KubeTRE has no data ingress path yet. |
+| Data engineer | Builds pipelines between the data platform and the TRE. Data comes in through the [airlock](airlock.md). |
 | Information security officer | Reviews the security model ([ADR 8](../adr/0008-vm-security-model.md), [ADR 9](../adr/0009-access-gateway.md)) and the [security checks](../quickstart/verify.md) before sensitive data is used. |
 
 ## Seeing your roles

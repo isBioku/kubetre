@@ -13,6 +13,9 @@ data:
   API_SCOPE: ""
   GATEWAY_URL: ""
   VERSION: "dev"
+  # The airlock's storage accounts; empty turns the airlock off.
+  AIRLOCK_EXTERNAL_ACCOUNT: ""
+  AIRLOCK_INTERNAL_ACCOUNT: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -26,7 +29,8 @@ spec:
     matchLabels: {app.kubernetes.io/name: kubetre-api}
   template:
     metadata:
-      labels: {app.kubernetes.io/name: kubetre-api}
+      # Workload identity gives the API the airlock identity's Azure token.
+      labels: {app.kubernetes.io/name: kubetre-api, azure.workload.identity/use: "true"}
     spec:
       serviceAccountName: kubetre-api
       securityContext:
@@ -43,6 +47,8 @@ spec:
             - --api-scope=$(API_SCOPE)
             - --gateway-url=$(GATEWAY_URL)
             - --version=$(VERSION)
+            - --airlock-external-account=$(AIRLOCK_EXTERNAL_ACCOUNT)
+            - --airlock-internal-account=$(AIRLOCK_INTERNAL_ACCOUNT)
           envFrom: [{configMapRef: {name: kubetre-api}}]
           ports: [{name: http, containerPort: 8080}]
           livenessProbe: {httpGet: {path: /healthz, port: http}}

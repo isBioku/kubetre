@@ -82,8 +82,7 @@ spec:
   subset.
 - **Strict.** Use `additionalProperties: false`, so unexpected input is rejected.
 - **Updates.** Mark a property `updateable: true` to let users change it after creation. All
-  others are read-only on the update form. For services and user resources the API also
-  refuses changes to them; for workspaces only the form enforces it so far.
+  others are read-only on the update form, and the API refuses changes to them.
 - **No defaults applied.** The API does not apply defaults, so a chart must render with only
   the template's `values`. The tests check this.
 

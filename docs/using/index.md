@@ -21,7 +21,6 @@ its owner or a TRE administrator to add your email address to it.
 
 ## Moving data
 
-There is no airlock yet, so there is no sanctioned way to bring files into a workspace or take
-results out. Data your project needs must be provided inside the workspace by your
-administrators. Machines can download from the workspace's allowed internet domains, such as
-package repositories.
+Files go in and out of a workspace through the airlock, with an airlock manager's approval.
+See [Moving data with the airlock](airlock.md). Machines can also download from the
+workspace's allowed internet domains, such as package repositories.

@@ -4,6 +4,7 @@ resources:
   - workspacetemplate-base.yaml
   - workspacetemplate-vm.yaml
   - workspacetemplate-unrestricted.yaml
+  - workspacetemplate-airlock-import-review.yaml
   - servicetemplate-virtual-desktops.yaml
   - servicetemplate-linux-desktop.yaml
   - servicetemplate-linux-vm.yaml

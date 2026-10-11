@@ -1,0 +1,19 @@
+{{- /*
+  An airlock review VM gets a read-only link to the request's data. On Linux, cloud-init writes
+  it and download instructions to the reviewer's home directory; on Windows, Azure places the
+  custom data at C:\AzureData\CustomData.bin. The link is a credential, so it lives in a Secret.
+*/ -}}
+{{- if .Values.airlockRequestUrl }}
+{{- $data := .Values.airlockRequestUrl -}}
+{{- if ne .Values.os "windows" -}}
+{{- $data = include "rvm.reviewCloudInit" . -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "rvm.name" . }}-review
+  labels: {{- include "rvm.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  customData: {{ $data | b64enc | quote }}
+{{- end }}

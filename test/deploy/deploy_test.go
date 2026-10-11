@@ -53,6 +53,11 @@ var values = map[string]string{
 	"UI_CLIENT_ID":             "99999999-9999-9999-9999-999999999999",
 	"TRE_ID":                   "kubetredev",
 	"NEXUS_ILB_IP":             "10.224.9.20",
+	"AIRLOCK_CLIENT_ID":        "55555555-5555-5555-5555-555555555555",
+	"AIRLOCK_EXTERNAL_ACCOUNT": "stalextkubetredev",
+	"AIRLOCK_INTERNAL_ACCOUNT": "stalintkubetredev",
+	"AIRLOCK_INTERNAL_IP":      "10.224.11.20",
+	"AIRLOCK_MALWARE_SCANNING": `"false"`,
 	"GITEA_ILB_IP":             "10.224.9.21",
 	"MIRROR_UPSTREAM_FQDNS":    `[{"matchName":"pypi.org"},{"matchName":"github.com"}]`,
 	"GATEWAY_ILB_IP":           "10.224.9.10",
@@ -286,6 +291,21 @@ func TestTemplatesUseTheEnvironmentRegistry(t *testing.T) {
 	if n != 6 {
 		t.Fatalf("expected 6 ServiceTemplates in the platform stage, found %d", n)
 	}
+}
+
+// Import review VMs may reach the environment's external airlock account and nothing else.
+func TestImportReviewReachesTheExternalAirlockAccount(t *testing.T) {
+	for _, u := range docs(build(t, "platform")) {
+		if u.GetKind() != "WorkspaceTemplate" || u.GetName() != "airlock-import-review" {
+			continue
+		}
+		got, _, _ := unstructured.NestedStringSlice(u.Object, "spec", "egress", "allowedFQDNs")
+		if len(got) != 1 || got[0] != "${AIRLOCK_EXTERNAL_ACCOUNT}.blob.core.windows.net" {
+			t.Fatalf("allowedFQDNs = %v", got)
+		}
+		return
+	}
+	t.Fatal("no airlock-import-review WorkspaceTemplate in the platform stage")
 }
 
 // The API is published on the gateway, and the cross-namespace grant covers only that.

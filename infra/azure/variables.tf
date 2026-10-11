@@ -195,6 +195,18 @@ variable "mirror_upstream_fqdns" {
   ]
 }
 
+variable "airlock_malware_scanning_enabled" {
+  description = "Scan every file uploaded to the airlock with Microsoft Defender for Storage. Files are not reviewed until scanned. Billed per GB scanned."
+  type        = bool
+  default     = false
+}
+
+variable "airlock_malware_scanning_cap_gb" {
+  description = "Monthly cap, in GB, on malware scanning per airlock storage account."
+  type        = number
+  default     = 100
+}
+
 variable "log_retention_days" {
   type    = number
   default = 90

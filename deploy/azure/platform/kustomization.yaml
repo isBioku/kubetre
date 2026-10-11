@@ -42,6 +42,10 @@ patches:
       - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/gitea/gitea"}
       - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
       - {op: replace, path: /spec/values/service, value: {loadBalancerIP: "${GITEA_ILB_IP}", subnet: "${ILB_SUBNET_NAME}"}}
+  # Import review VMs read imports from the external airlock account.
+  - target: {kind: WorkspaceTemplate, name: airlock-import-review}
+    patch: |
+      - {op: replace, path: /spec/egress/allowedFQDNs, value: ["${AIRLOCK_EXTERNAL_ACCOUNT}.blob.core.windows.net"]}
   # The shared namespace admits the environment's VM pool and reaches the mirrors' upstreams.
   - target: {kind: NetworkPolicy, name: allow-from-workspaces, namespace: kubetre-shared}
     patch: |

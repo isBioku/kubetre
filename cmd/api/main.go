@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
+	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
 	"github.com/isBioku/kubetre/internal/tre"
 )
@@ -33,6 +34,8 @@ func main() {
 		apiScope   = flag.String("api-scope", "", "The API's application ID URI, returned as each workspace's scope_id. Defaults to api://<oidc-audience>.")
 		gatewayURL = flag.String("gateway-url", "", "Base URL of the access gateway broker, used for connection links, for example https://tre.example.org/gateway.")
 		version    = flag.String("version", "dev", "Version reported by /api/.metadata.")
+		airlockExt = flag.String("airlock-external-account", "", "Storage account for airlock data reachable from outside. Empty disables the airlock.")
+		airlockInt = flag.String("airlock-internal-account", "", "Storage account for airlock data reachable only inside the TRE.")
 	)
 	flag.Parse()
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -72,8 +75,18 @@ func main() {
 	}
 	// /api/v1 is KubeTRE's own API; the rest of /api is AzureTRE's API, which AzureTRE's UI uses.
 	native := (&api.Server{Client: c, Auth: auth, AdminRole: *adminRole, Log: log}).Handler()
-	compat := (&tre.Server{Client: c, Auth: auth, AdminRole: *adminRole, APIScope: scope, GatewayURL: *gatewayURL,
-		Version: *version, Log: log}).Handler()
+	compatServer := &tre.Server{Client: c, Auth: auth, AdminRole: *adminRole, APIScope: scope, GatewayURL: *gatewayURL,
+		Version: *version, Log: log}
+	if *airlockExt != "" && *airlockInt != "" {
+		store, err := airlock.NewAzureStore(*airlockExt, *airlockInt)
+		if err != nil {
+			log.Error("airlock storage", "error", err)
+			os.Exit(1)
+		}
+		compatServer.Airlock = store
+		log.Info("airlock enabled", "external", *airlockExt, "internal", *airlockInt)
+	}
+	compat := compatServer.Handler()
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", native)
 	mux.Handle("/api/v1/", native)

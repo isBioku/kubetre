@@ -16,4 +16,7 @@ spec:
     image: {{- toYaml .Values.image | nindent 6 }}
     adminUsername: {{ .Values.username | quote }}
     passwordSecretName: {{ include "rvm.name" . }}-credentials
+    {{- if .Values.airlockRequestUrl }}
+    customDataSecretName: {{ include "rvm.name" . }}-review
+    {{- end }}
     owner: {{ .Values.kubetre.owner | quote }}

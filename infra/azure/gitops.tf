@@ -60,6 +60,12 @@ locals {
     GATEWAY_OIDC_CLIENT_ID   = var.gateway_oidc_client_id
     UI_CLIENT_ID             = var.ui_client_id
     NEXUS_ILB_IP             = local.nexus_ilb_ip
+    AIRLOCK_CLIENT_ID        = azurerm_user_assigned_identity.airlock.client_id
+    AIRLOCK_EXTERNAL_ACCOUNT = local.airlock_external_account
+    AIRLOCK_INTERNAL_ACCOUNT = local.airlock_internal_account
+    AIRLOCK_INTERNAL_IP      = local.airlock_internal_pe_ip
+    # Quoted, so it stays a string in ConfigMaps after Kustomize drops the quotes.
+    AIRLOCK_MALWARE_SCANNING = jsonencode(tostring(var.airlock_malware_scanning_enabled))
     GITEA_ILB_IP             = local.gitea_ilb_ip
     MIRROR_UPSTREAM_FQDNS    = jsonencode([for f in var.mirror_upstream_fqdns : { matchName = f }])
     TRE_ID                   = var.name

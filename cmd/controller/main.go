@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,6 +17,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
+	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/controller"
 )
 
@@ -24,11 +26,17 @@ func main() {
 	var leaderElect bool
 	var vmPool string
 	var vmSubnetLength int
+	var airlockExternal, airlockInternal, uiURL string
+	var malwareScanning bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to; 0 disables it.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the health probe endpoint binds to.")
 	flag.BoolVar(&leaderElect, "leader-elect", false, "Enable leader election so only one replica reconciles.")
 	flag.StringVar(&vmPool, "vm-address-pool", "", "CIDR that workspace VM subnets are allocated from, for example 10.240.0.0/16. Empty disables VM workspaces.")
 	flag.IntVar(&vmSubnetLength, "vm-subnet-length", 26, "Prefix length of each workspace's VM subnet.")
+	flag.StringVar(&airlockExternal, "airlock-external-account", "", "Storage account for airlock data reachable from outside. Empty disables the airlock.")
+	flag.StringVar(&airlockInternal, "airlock-internal-account", "", "Storage account for airlock data reachable only inside the TRE.")
+	flag.BoolVar(&malwareScanning, "airlock-malware-scanning", false, "Hold airlock files until Microsoft Defender for Storage has scanned them.")
+	flag.StringVar(&uiURL, "ui-url", "", "Address of the UI, for links in notification emails.")
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -68,8 +76,12 @@ func main() {
 		}
 		log.Info("VM workspaces enabled", "pool", vmPool, "subnets", pool.Size())
 	}
+	airlockHost := ""
+	if airlockExternal != "" && airlockInternal != "" {
+		airlockHost = airlockInternal + ".blob.core.windows.net"
+	}
 	if err := (&controller.WorkspaceReconciler{
-		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(), VMPool: pool,
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(), VMPool: pool, AirlockHost: airlockHost,
 	}).SetupWithManager(mgr); err != nil {
 		log.Error(err, "unable to set up workspace controller")
 		os.Exit(1)
@@ -78,6 +90,30 @@ func main() {
 		log.Error(err, "unable to set up workspace service controller")
 		os.Exit(1)
 	}
+	if airlockHost != "" {
+		store, err := airlock.NewAzureStore(airlockExternal, airlockInternal)
+		if err != nil {
+			log.Error(err, "airlock storage")
+			os.Exit(1)
+		}
+		var notifier airlock.Notifier
+		if host := os.Getenv("SMTP_HOST"); host != "" {
+			port, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
+			if port == 0 {
+				port = 587
+			}
+			notifier = &airlock.SMTPNotifier{Host: host, Port: port, Username: os.Getenv("SMTP_USERNAME"),
+				Password: os.Getenv("SMTP_PASSWORD"), From: os.Getenv("SMTP_FROM")}
+			log.Info("airlock notifications enabled", "smtp", host)
+		}
+		if err := (&controller.AirlockRequestReconciler{Client: mgr.GetClient(), Store: store, Notifier: notifier,
+			MalwareScanning: malwareScanning, UIURL: uiURL}).SetupWithManager(mgr); err != nil {
+			log.Error(err, "unable to set up airlock controller")
+			os.Exit(1)
+		}
+		log.Info("airlock enabled", "external", airlockExternal, "internal", airlockInternal, "malwareScanning", malwareScanning)
+	}
+
 	must(mgr.AddHealthzCheck("healthz", healthz.Ping))
 	must(mgr.AddReadyzCheck("readyz", healthz.Ping))
 

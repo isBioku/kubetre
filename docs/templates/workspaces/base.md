@@ -46,4 +46,5 @@ The template allows no internet domains of its own.
 ## Limitations
 
 - No virtual machines: use [Workspace with virtual machines](vm-workspace.md) for those.
-- No airlock and no storage account per workspace yet.
+- No storage account per workspace yet. The airlock is available, but its review VMs need a
+  workspace with virtual machines.

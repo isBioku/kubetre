@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
+	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
 	"github.com/isBioku/kubetre/internal/controller"
 	"github.com/isBioku/kubetre/internal/tre"
@@ -64,7 +65,7 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer((&tre.Server{Client: c, Auth: api.DevAuthenticator{}, APIScope: "api://x",
-		GatewayURL: "https://tre.example.org/gateway"}).Handler())
+		GatewayURL: "https://tre.example.org/gateway", Airlock: airlock.NewMemoryStore()}).Handler())
 	t.Cleanup(srv.Close)
 
 	call := func(method, path, user, body string) map[string]any {
@@ -101,7 +102,8 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	// The workspace, created the way the UI creates it, then renamed for the test's namespace.
 	if err := admin.Create(ctx, &treV1.Workspace{ObjectMeta: metav1.ObjectMeta{Name: "study1"}, Spec: treV1.WorkspaceSpec{
 		DisplayName: "Study", TemplateRef: "vm-workspace", Owners: []string{"olu@example.com"},
-		Researchers: []string{"rita@example.com"}}}); err != nil {
+		Researchers: []string{"rita@example.com"}, AirlockManagers: []string{"mia@example.com"},
+		Airlock: treV1.AirlockSpec{Enabled: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	ready(&treV1.Workspace{ObjectMeta: metav1.ObjectMeta{Name: "study1"}})
@@ -112,6 +114,19 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 		"/api/workspaces/study1/workspace-service-templates/virtual-desktops/user-resource-templates",
 		"/api/operations", "/api/workspaces/study1/operations", "/api/workspaces/study1/users"} {
 		call("GET", p, "olu@example.com", "")
+	}
+
+	// Airlock: requests created, read, linked, submitted and cancelled.
+	reqs := "/api/workspaces/study1/requests"
+	id := call("POST", reqs, "rita@example.com", `{"type":"import","title":"t","businessJustification":"b"}`)["airlockRequest"].(map[string]any)["id"].(string)
+	call("GET", reqs, "mia@example.com", "")
+	call("GET", reqs+"/"+id, "rita@example.com", "")
+	call("GET", reqs+"/"+id+"/link", "rita@example.com", "")
+	call("POST", reqs+"/"+id+"/submit", "rita@example.com", "")
+	draft := call("POST", reqs, "rita@example.com", `{"type":"export","title":"t","businessJustification":"b"}`)["airlockRequest"].(map[string]any)["id"].(string)
+	call("POST", reqs+"/"+draft+"/cancel", "rita@example.com", "")
+	if code, out := do(t, srv, "GET", "/api/requests?airlock_manager=true", "mia@example.com", "", ""); code != 200 || !strings.Contains(out, id) {
+		t.Fatalf("manager's requests: %d %s", code, out)
 	}
 
 	base := "/api/workspaces/study1/workspace-services"

@@ -1,0 +1,27 @@
+# AzureTRE's Airlock Import Review workspace: where airlock managers inspect files being imported,
+# before they reach a research workspace. Its review VMs read the import from the external airlock
+# account and can reach nothing else.
+apiVersion: kubetre.io/v1alpha1
+kind: WorkspaceTemplate
+metadata:
+  name: airlock-import-review
+spec:
+  displayName: Airlock Import Review workspace
+  description: For airlock managers to inspect files being imported into other workspaces. Create a Virtual Desktops service in it, then point research workspaces' import review settings at it.
+  version: 0.1.0
+  podSecurity: restricted
+  virtualMachines:
+    enabled: true
+  quota:
+    requests.cpu: "4"
+    requests.memory: 16Gi
+    persistentvolumeclaims: "5"
+    requests.storage: 200Gi
+    count/researchvms.platform.kubetre.io: "10"
+  egress:
+    # Replaced per environment with the external airlock account.
+    allowedFQDNs: [stalextexample.blob.core.windows.net]
+  parametersSchema:
+    type: object
+    properties: {}
+    additionalProperties: false

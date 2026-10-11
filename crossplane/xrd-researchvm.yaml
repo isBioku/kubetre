@@ -62,6 +62,9 @@ spec:
                       x-kubernetes-validations:
                         - rule: "!(self in ['admin', 'administrator', 'root', 'guest', 'user', 'test', 'azureuser'])"
                           message: adminUsername is reserved by Azure
+                    customDataSecretName:
+                      type: string
+                      description: Secret in the same namespace whose "customData" key holds base64 custom data, for example an airlock review link.
                     passwordSecretName:
                       type: string
                       minLength: 1

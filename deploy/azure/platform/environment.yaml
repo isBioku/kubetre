@@ -12,6 +12,7 @@ data:
   firewallPolicyId: ${FIREWALL_POLICY_ID}
   accessGatewayPrefixes: ["${ACCESS_GATEWAY_PREFIX}"]
   sharedServicePrefixes: ["${SHARED_SERVICES_PREFIX}"]
+  airlockPrivateIp: ${AIRLOCK_INTERNAL_IP}
   encryptionAtHost: ${ENCRYPTION_AT_HOST}
   vmSizes:
     small: ${VM_SIZE_SMALL}
@@ -41,3 +42,33 @@ data:
   API_SCOPE: ""
   GATEWAY_URL: https://${GATEWAY_HOSTNAME}/gateway
   VERSION: ${KUBETRE_VERSION}
+  AIRLOCK_EXTERNAL_ACCOUNT: ${AIRLOCK_EXTERNAL_ACCOUNT}
+  AIRLOCK_INTERNAL_ACCOUNT: ${AIRLOCK_INTERNAL_ACCOUNT}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubetre-controller
+  namespace: kubetre-system
+data:
+  AIRLOCK_EXTERNAL_ACCOUNT: ${AIRLOCK_EXTERNAL_ACCOUNT}
+  AIRLOCK_INTERNAL_ACCOUNT: ${AIRLOCK_INTERNAL_ACCOUNT}
+  AIRLOCK_MALWARE_SCANNING: ${AIRLOCK_MALWARE_SCANNING}
+  UI_URL: https://${GATEWAY_HOSTNAME}
+---
+# The API and controller use the airlock identity through workload identity.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubetre-api
+  namespace: kubetre-system
+  annotations:
+    azure.workload.identity/client-id: ${AIRLOCK_CLIENT_ID}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubetre-controller
+  namespace: kubetre-system
+  annotations:
+    azure.workload.identity/client-id: ${AIRLOCK_CLIENT_ID}

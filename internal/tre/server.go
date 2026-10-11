@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/isBioku/kubetre/internal/access"
+	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
 )
 
@@ -28,8 +29,10 @@ type Server struct {
 	// GatewayURL is the access gateway's base URL, used to build connection_uri.
 	GatewayURL string
 	Version    string
-	Log        *slog.Logger
-	Now        func() time.Time
+	// Airlock is the airlock's storage; nil when the airlock is not configured.
+	Airlock airlock.Store
+	Log     *slog.Logger
+	Now     func() time.Time
 }
 
 func (s *Server) now() time.Time {
@@ -122,10 +125,18 @@ func (s *Server) Handler() http.Handler {
 	// Features KubeTRE does not have yet. The UI already handles these responses.
 	h("GET /api/costs", notSupported)
 	h("GET /api/workspaces/{ws}/costs", notSupported)
-	h("GET /api/requests", func(w http.ResponseWriter, _ *http.Request, _ access.Identity) {
-		writeJSON(w, http.StatusOK, []any{})
-	})
-	h("GET /api/workspaces/{ws}/requests", s.listAirlockRequests)
+	// Airlock.
+	h("GET /api/requests", s.listMyAirlockRequests)
+	ar := "/api/workspaces/{ws}/requests"
+	h("GET "+ar, s.listAirlockRequests)
+	h("POST "+ar, s.createAirlockRequest)
+	h("GET "+ar+"/{req}", s.getAirlockRequest)
+	h("POST "+ar+"/{req}/submit", s.submitAirlockRequest)
+	h("POST "+ar+"/{req}/cancel", s.cancelAirlockRequest)
+	h("POST "+ar+"/{req}/revoke", s.revokeAirlockRequest)
+	h("POST "+ar+"/{req}/review", s.reviewAirlockRequest)
+	h("POST "+ar+"/{req}/review-user-resource", s.createReviewResource)
+	h("GET "+ar+"/{req}/link", s.airlockLink)
 	h("GET /api/workspaces/{ws}/users", s.listWorkspaceUsers)
 	h("GET /api/workspaces/{ws}/roles", s.listWorkspaceRoles)
 	return m

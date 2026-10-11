@@ -12,7 +12,7 @@ spec:
   requiredPodSecurity: restricted
   chart:
     url: oci://registry.example.org/charts/research-vm
-    version: 0.2.0
+    version: 0.3.0
     provider: azure
   values:
     os: linux

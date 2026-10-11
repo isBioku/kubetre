@@ -26,9 +26,8 @@ resource. There is no Swagger UI.
 | Workspace roles | `userRoles` on the workspace, a KubeTRE extension the UI reads |
 | `connection_uri` | `https://<host>/gateway/connect/<workspace>/<resource>` for machines |
 
-Validation follows AzureTRE: properties must match the template's JSON Schema, and on update
-of a service or user resource, fields not marked `updateable` cannot change. Workspace
-parameters are not yet checked for `updateable` by the API, only by the form. A workspace or service that does not exist, or
+Validation follows AzureTRE: properties must match the template's JSON Schema, and on update,
+fields not marked `updateable` cannot change. A workspace or service that does not exist, or
 that the caller cannot see, returns 404, so names do not leak.
 
 ## Permissions map
@@ -66,16 +65,26 @@ workspace role is treated as a member for reading.
 | `DELETE .../user-resources/{ur}` | all (and TRE admins) | own | own |
 | `GET .../user-resources/{ur}/operations[/{op}]` | all | own | own |
 | `GET /api/workspaces/{ws}/users` | yes (and TRE admins) | no | no |
-| `GET /api/workspaces/{ws}/roles`, `/requests` | yes | yes | yes |
+| `GET /api/workspaces/{ws}/roles` | yes | yes | yes |
+
+### Airlock
+
+As in AzureTRE, TRE administrators get no access without a workspace role.
+
+| Endpoint | Owner | Researcher | Airlock manager |
+|---|---|---|---|
+| `GET /api/workspaces/{ws}/requests[/{id}]` | yes | yes | yes |
+| `POST .../requests`, `.../submit`, `.../cancel` | yes | yes | no |
+| `POST .../review`, `.../revoke`, `.../review-user-resource` | no | no | yes |
+| `GET .../requests/{id}/link` | draft and approved | draft and approved | in review |
+| `GET /api/requests` | own requests; with `airlock_manager=true`, every request in workspaces they manage | | |
 
 ### Not implemented
 
 | Endpoint | Response |
 |---|---|
 | `GET /api/costs`, `/api/workspaces/{ws}/costs` | 404, shown by the UI as "not supported" |
-| `GET /api/shared-services`, `/api/shared-service-templates` | empty lists |
-| `GET /api/requests`, `/api/workspaces/{ws}/requests` | empty lists |
-| `POST .../invoke-action`, template `POST`s, airlock `POST`s, `/migrations` | not available |
+| `POST .../invoke-action`, template `POST`s, `/migrations` | not available |
 
 ## KubeTRE's own API
 
