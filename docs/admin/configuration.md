@@ -96,7 +96,7 @@ This reference is generated from `infra/azure/variables.tf` by `hack/gen-config-
 | `gitops_repository_url` | `""` | HTTPS URL of the Git repository Flux syncs. Empty installs Flux without a configuration. |
 | `gitops_branch` | `"main"` | Branch Flux follows. |
 | `gitops_path` | `"deploy/azure"` | Path inside the repository to the deploy/azure directory. |
-| `kubetre_version` | `"0.2.5"` | Image tag of KubeTRE's images in ACR. Keep it equal to the VERSION file, which `make acr-build` uses. |
+| `kubetre_version` | `"0.3.0"` | Image tag of KubeTRE's images in ACR. Keep it equal to the VERSION file, which `make acr-build` uses. |
 
 ## Coming from AzureTRE
 

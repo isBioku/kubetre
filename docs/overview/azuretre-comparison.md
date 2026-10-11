@@ -36,8 +36,7 @@ KubeTRE keeps what users see and replaces what operators run.
 ## Not available yet
 
 - **Shared services:** CycleCloud and certificates. The Nexus and Gitea mirrors are available.
-- **Costs and power:** cost reporting, start and stop for the TRE and for VMs, and VM
-  password reset.
+- **Power:** start and stop for the TRE and for VMs, and VM password reset.
 - **Lifecycle:** template version upgrades of existing resources, resource history, pipeline
   templates and custom actions.
 - **Identity:** the Users page backed by Microsoft Graph, and automation identities. API roles

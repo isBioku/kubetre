@@ -69,6 +69,9 @@ locals {
     GITEA_ILB_IP             = local.gitea_ilb_ip
     MIRROR_UPSTREAM_FQDNS    = jsonencode([for f in var.mirror_upstream_fqdns : { matchName = f }])
     TRE_ID                   = var.name
+    COSTS_CLIENT_ID          = azurerm_user_assigned_identity.costs.client_id
+    CORE_RESOURCE_GROUP      = azurerm_resource_group.core.name
+    NODE_RESOURCE_GROUP      = azurerm_kubernetes_cluster.this.node_resource_group
     VNET_ID                  = azurerm_virtual_network.this.id
     LOG_ANALYTICS_ID         = azurerm_log_analytics_workspace.this.id
     PRIVATE_DNS_ZONE_IDS     = jsonencode(local.paas_private_dns_zone_ids)

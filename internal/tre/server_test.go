@@ -33,10 +33,11 @@ const (
 )
 
 type env struct {
-	t     *testing.T
-	srv   *httptest.Server
-	c     client.Client
-	store *airlock.MemoryStore
+	t      *testing.T
+	srv    *httptest.Server
+	c      client.Client
+	store  *airlock.MemoryStore
+	server *Server
 }
 
 func newEnv(t *testing.T, objs ...client.Object) *env {
@@ -74,7 +75,7 @@ func newEnv(t *testing.T, objs ...client.Object) *env {
 		GatewayURL: "https://tre.example.org/gateway", Version: "0.2.0", Airlock: store}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &env{t: t, srv: srv, c: c, store: store}
+	return &env{t: t, srv: srv, c: c, store: store, server: s}
 }
 
 func (e *env) call(method, path, user, body string, headers ...string) (int, map[string]any) {

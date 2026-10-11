@@ -16,6 +16,11 @@ data:
   # The airlock's storage accounts; empty turns the airlock off.
   AIRLOCK_EXTERNAL_ACCOUNT: ""
   AIRLOCK_INTERNAL_ACCOUNT: ""
+  # Cost reporting: the Cost Management reader identity, the subscription, and the TRE's
+  # resource groups as core,workspaces,cluster. An empty client ID turns it off.
+  COSTS_CLIENT_ID: ""
+  COSTS_SUBSCRIPTION_ID: ""
+  COSTS_RESOURCE_GROUPS: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,6 +54,9 @@ spec:
             - --version=$(VERSION)
             - --airlock-external-account=$(AIRLOCK_EXTERNAL_ACCOUNT)
             - --airlock-internal-account=$(AIRLOCK_INTERNAL_ACCOUNT)
+            - --costs-client-id=$(COSTS_CLIENT_ID)
+            - --costs-subscription-id=$(COSTS_SUBSCRIPTION_ID)
+            - --costs-resource-groups=$(COSTS_RESOURCE_GROUPS)
           envFrom: [{configMapRef: {name: kubetre-api}}]
           ports: [{name: http, containerPort: 8080}]
           livenessProbe: {httpGet: {path: /healthz, port: http}}

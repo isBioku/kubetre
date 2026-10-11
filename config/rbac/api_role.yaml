@@ -25,3 +25,7 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch"]
+  # Cost reporting divides the cluster's cost by what each workspace's quota reserves.
+  - apiGroups: [""]
+    resources: ["nodes", "resourcequotas"]
+    verbs: ["get", "list", "watch"]

@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -20,6 +22,7 @@ import (
 	treV1 "github.com/isBioku/kubetre/api/v1alpha1"
 	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
+	"github.com/isBioku/kubetre/internal/costs"
 	"github.com/isBioku/kubetre/internal/tre"
 )
 
@@ -36,6 +39,9 @@ func main() {
 		version    = flag.String("version", "dev", "Version reported by /api/.metadata.")
 		airlockExt = flag.String("airlock-external-account", "", "Storage account for airlock data reachable from outside. Empty disables the airlock.")
 		airlockInt = flag.String("airlock-internal-account", "", "Storage account for airlock data reachable only inside the TRE.")
+		costsID    = flag.String("costs-client-id", "", "Client ID of the identity that reads Azure Cost Management. Empty disables cost reporting.")
+		costsSub   = flag.String("costs-subscription-id", "", "Subscription whose costs are reported.")
+		costsRGs   = flag.String("costs-resource-groups", "", "The TRE's resource groups: core,workspaces,cluster (the AKS node resource group).")
 	)
 	flag.Parse()
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -85,6 +91,22 @@ func main() {
 		}
 		compatServer.Airlock = store
 		log.Info("airlock enabled", "external", *airlockExt, "internal", *airlockInt)
+	}
+	if *costsID != "" {
+		groups := strings.Split(strings.ToLower(*costsRGs), ",")
+		if len(groups) != 3 || *costsSub == "" {
+			log.Error("cost reporting needs --costs-subscription-id and three --costs-resource-groups")
+			os.Exit(1)
+		}
+		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{ClientID: *costsID})
+		if err != nil {
+			log.Error("costs identity", "error", err)
+			os.Exit(1)
+		}
+		compatServer.Costs = &costs.Cached{TTL: 2 * time.Hour,
+			Source: &costs.Azure{Credential: cred, SubscriptionID: *costsSub, ResourceGroups: groups}}
+		compatServer.CostGroups = tre.CostGroups{Core: groups[0], Workspaces: groups[1], Cluster: groups[2]}
+		log.Info("cost reporting enabled", "resourceGroups", groups)
 	}
 	compat := compatServer.Handler()
 	mux := http.NewServeMux()

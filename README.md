@@ -99,7 +99,7 @@ troubleshooting are in the Administration and Troubleshooting sections. The VM s
 5. **Shared services.** Package mirror (Nexus) and git mirror in `kubetre-shared`.
 6. **UI.** Template-driven forms from the template schemas.
 7. **Airlock.** Done in code: requests as resources, two storage accounts, short-lived links, malware scanning, review VMs and email. See [Airlock](docs/overview/airlock.md).
-8. **Hardening.** Audit logs, Defender, stronger container isolation, cost reporting.
+8. **Hardening.** Audit logs, Defender, stronger container isolation. Cost reporting is done in code.
 
 ## Status and license
 

@@ -2,18 +2,32 @@
 
 ## Cost reporting
 
-!!! warning "Not available yet"
-    AzureTRE shows costs on workspace, service and resource cards, from Azure Cost Management
-    and resource tags. KubeTRE's cost endpoints return "not found", which the UI treats as
-    "not supported", so no costs are shown.
+The UI shows costs on workspace, service and resource cards, as in AzureTRE: TRE
+administrators see every workspace's month-to-date cost, and workspace owners see their
+workspace's, broken down by service and resource. Researchers see no costs.
 
-A future design has to handle two kinds of cost:
+The API implements AzureTRE's `GET /api/costs` and `GET /api/workspaces/{ws}/costs`, with
+the same `from_date`, `to_date` and `granularity` (`None` or `Daily`) parameters. It reads
+Azure Cost Management's actual costs for the TRE's three resource groups with its own
+identity, `id-<name>-costs`, which holds only **Cost Management Reader**. Results are kept
+for two hours, as AzureTRE keeps them; Cost Management itself updates a few times a day.
 
-- **Azure resources per workspace**, such as VMs, disks and subnets. Crossplane can tag these
-  with workspace and resource IDs, as AzureTRE does.
-- **Shared nodes.** Container desktops and KubeVirt VMs share cluster nodes, so Azure Cost
-  Management cannot attribute them. They need allocation by namespace, for example from AKS
-  cost analysis or OpenCost.
+| Cost | Comes from |
+|---|---|
+| A workspace | Azure resources tagged `kubetre-workspace` (VMs, NICs, security groups, PaaS services), plus its share of the cluster |
+| A workspace service | Azure resources tagged `kubetre-service` |
+| A user resource | Azure resources tagged `kubetre-vm` or `kubetre-service` with its name |
+| Core services | the platform's resource group, the cluster not reserved by workspaces, and workspace resources Azure does not tag |
+
+**The cluster share is an estimate.** Container desktops, KubeVirt VMs, Gitea and OHDSI run on
+shared nodes, which Azure bills to the AKS node resource group as a whole. KubeTRE divides
+that cost between workspaces in proportion to the CPU and memory their quotas show as
+requested, averaged, out of what the nodes can allocate. It uses today's requests for the
+whole period, so a workspace that grew this week is charged as if it had always been that
+size.
+
+**Untagged resources.** Azure does not copy a VM's tags to its OS disk, so disks count as
+core costs, as they would in AzureTRE.
 
 ## What an environment costs to run
 

@@ -16,6 +16,7 @@ import (
 	"github.com/isBioku/kubetre/internal/access"
 	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
+	"github.com/isBioku/kubetre/internal/costs"
 )
 
 // Server is the AzureTRE-compatible API.
@@ -31,8 +32,11 @@ type Server struct {
 	Version    string
 	// Airlock is the airlock's storage; nil when the airlock is not configured.
 	Airlock airlock.Store
-	Log     *slog.Logger
-	Now     func() time.Time
+	// Costs reads Azure Cost Management; nil when cost reporting is not configured.
+	Costs      costs.Source
+	CostGroups CostGroups
+	Log        *slog.Logger
+	Now        func() time.Time
 }
 
 func (s *Server) now() time.Time {
@@ -122,9 +126,9 @@ func (s *Server) Handler() http.Handler {
 	h("GET /api/shared-services/{ss}/operations/{op}", s.getSharedOperation)
 	h("GET /api/shared-services/{ss}/history", s.getSharedHistory)
 
-	// Features KubeTRE does not have yet. The UI already handles these responses.
-	h("GET /api/costs", notSupported)
-	h("GET /api/workspaces/{ws}/costs", notSupported)
+	// Costs.
+	h("GET /api/costs", s.getCosts)
+	h("GET /api/workspaces/{ws}/costs", s.getWorkspaceCosts)
 	// Airlock.
 	h("GET /api/requests", s.listMyAirlockRequests)
 	ar := "/api/workspaces/{ws}/requests"
@@ -153,10 +157,6 @@ func (s *Server) authed(fn authed) http.HandlerFunc {
 		}
 		fn(w, r, id)
 	}
-}
-
-func notSupported(w http.ResponseWriter, _ *http.Request, _ access.Identity) {
-	writeError(w, http.StatusNotFound, "not supported by KubeTRE yet")
 }
 
 func (s *Server) internal(w http.ResponseWriter, op string, err error) {

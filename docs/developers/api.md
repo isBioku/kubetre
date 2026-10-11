@@ -79,11 +79,20 @@ As in AzureTRE, TRE administrators get no access without a workspace role.
 | `GET .../requests/{id}/link` | draft and approved | draft and approved | in review |
 | `GET /api/requests` | own requests; with `airlock_manager=true`, every request in workspaces they manage | | |
 
+### Costs
+
+| Endpoint | Who |
+|---|---|
+| `GET /api/costs` | TRE administrators |
+| `GET /api/workspaces/{ws}/costs` | the workspace's owners and TRE administrators |
+
+Without cost reporting configured (no `--costs-client-id`), both return 404, which the UI
+shows as "not supported". See [Costs](../overview/costs.md).
+
 ### Not implemented
 
 | Endpoint | Response |
 |---|---|
-| `GET /api/costs`, `/api/workspaces/{ws}/costs` | 404, shown by the UI as "not supported" |
 | `POST .../invoke-action`, template `POST`s, `/migrations` | not available |
 
 ## KubeTRE's own API

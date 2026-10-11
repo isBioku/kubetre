@@ -23,6 +23,7 @@ import (
 	"github.com/isBioku/kubetre/internal/airlock"
 	"github.com/isBioku/kubetre/internal/api"
 	"github.com/isBioku/kubetre/internal/controller"
+	"github.com/isBioku/kubetre/internal/costs"
 	"github.com/isBioku/kubetre/internal/tre"
 )
 
@@ -64,7 +65,8 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer((&tre.Server{Client: c, Auth: api.DevAuthenticator{}, APIScope: "api://x",
-		GatewayURL: "https://tre.example.org/gateway", Airlock: airlock.NewMemoryStore()}).Handler())
+		GatewayURL: "https://tre.example.org/gateway", Airlock: airlock.NewMemoryStore(), Costs: noCosts{},
+		CostGroups: tre.CostGroups{Core: "rg-core", Workspaces: "rg-ws", Cluster: "mc-rg"}}).Handler())
 	t.Cleanup(srv.Close)
 
 	call := func(method, path, user, body string) map[string]any {
@@ -111,7 +113,7 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	for _, p := range []string{"/api/workspaces", "/api/workspaces/study1", "/api/workspaces/study1/scopeid",
 		"/api/workspace-templates", "/api/workspace-templates/vm-workspace", "/api/workspace-service-templates",
 		"/api/workspaces/study1/workspace-service-templates/virtual-desktops/user-resource-templates",
-		"/api/operations", "/api/workspaces/study1/operations", "/api/workspaces/study1/users"} {
+		"/api/operations", "/api/workspaces/study1/operations", "/api/workspaces/study1/users", "/api/workspaces/study1/costs"} {
 		call("GET", p, "olu@example.com", "")
 	}
 
@@ -151,6 +153,7 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	ss := call("POST", "/api/shared-services", "admin@example.com",
 		`{"templateName":"nexus","properties":{"display_name":"Mirror","description":"d"}}`)["operation"].(map[string]any)["resourceId"].(string)
 	call("GET", "/api/shared-services", "olu@example.com", "")
+	call("GET", "/api/costs", "admin@example.com", "")
 	call("GET", "/api/shared-service-templates", "olu@example.com", "")
 	call("PATCH", "/api/shared-services/"+ss, "admin@example.com", `{"isEnabled":false}`)
 	call("DELETE", "/api/shared-services/"+ss, "admin@example.com", "")
@@ -163,3 +166,7 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 		t.Fatalf("missing workspace: %d %s", code, body)
 	}
 }
+
+type noCosts struct{}
+
+func (noCosts) Costs(context.Context, costs.Query) ([]costs.Row, error) { return nil, nil }

@@ -39,7 +39,7 @@ platform is not part of the TRE.
 - **Extensible.** New tools are Helm charts registered as templates.
 - **Entra ID.** Sign-in with Microsoft Entra ID; any OpenID Connect provider can be used.
 
-AzureTRE features not available yet include cost reporting. See
+AzureTRE features not available yet include starting and stopping VMs. See
 [KubeTRE and AzureTRE](overview/azuretre-comparison.md).
 
 ## Where to start

@@ -42,9 +42,7 @@ AzureTRE's UI test suite runs unchanged (`make ui-test`), plus tests for the rol
 
 ## Not yet supported
 
-Costs
-(the API returns 404, which the UI treats as "not supported"), resource history, template
-upgrades and custom actions such as starting and stopping VMs. User management stays in the
+Resource history, template upgrades and custom actions such as starting and stopping VMs. User management stays in the
 workspace form rather than AzureTRE's Microsoft Graph-backed Users page.
 
 ## Consequences
