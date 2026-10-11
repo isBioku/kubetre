@@ -1,0 +1,33 @@
+# Set by the ServiceTemplate (administrator).
+image:
+  repository: registry.example.org/sonatype/nexus3
+  tag: "3.96.4"
+curlImage:
+  repository: registry.example.org/curlimages/curl
+  tag: "8.22.0"
+# The internal load balancer workspace VMs use. The address must be free in the subnet.
+service:
+  loadBalancerIP: ""
+  subnet: ""
+storageGi: 100
+storageClassName: ""
+resources:
+  requests: {cpu: 500m, memory: 3Gi}
+  limits: {cpu: "2", memory: 3Gi}
+# Proxy repositories created by the setup job. "extra" is merged into the Nexus API request.
+repositories:
+  - {name: pypi, format: pypi, remoteUrl: "https://pypi.org/"}
+  - {name: cran, format: r, remoteUrl: "https://cloud.r-project.org/"}
+  - {name: conda, format: conda, remoteUrl: "https://conda.anaconda.org/"}
+  - {name: npm, format: npm, remoteUrl: "https://registry.npmjs.org/"}
+  - name: ubuntu
+    format: apt
+    remoteUrl: "http://archive.ubuntu.com/ubuntu/"
+    extra: {apt: {distribution: noble, flat: false}}
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted

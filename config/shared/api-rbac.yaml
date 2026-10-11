@@ -1,0 +1,18 @@
+# The API reports each shared service's addresses from its Service; it may only read them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubetre-api-read-services
+  namespace: kubetre-shared
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubetre-api-read-services
+  namespace: kubetre-shared
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: kubetre-api-read-services}
+subjects: [{kind: ServiceAccount, name: kubetre-api, namespace: kubetre-system}]

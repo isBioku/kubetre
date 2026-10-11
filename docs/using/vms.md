@@ -33,6 +33,27 @@ asks you to sign in. The session opens in the browser.
 
 If **Connect** is greyed out, the machine is still deploying, updating or disabled.
 
+## Installing packages
+
+If your TRE has the [Nexus package mirror](../templates/shared-services/nexus.md), install from
+it instead of the internet. Use the address shown on its card in **Shared Services**, for
+example `http://10.224.9.20`. From a desktop, use the card's `cluster_address` instead.
+
+```sh
+pip install --index-url http://10.224.9.20/repository/pypi/simple --trusted-host 10.224.9.20 pandas
+npm config set registry http://10.224.9.20/repository/npm/
+conda install -c http://10.224.9.20/repository/conda/conda-forge numpy
+```
+
+In R:
+
+```r
+options(repos = c(CRAN = "http://10.224.9.20/repository/cran/"))
+```
+
+For apt on Ubuntu, add `deb http://10.224.9.20/repository/ubuntu/ noble main universe` to the
+sources.
+
 ## Who can see what
 
 - **Researchers** see only their own machines.

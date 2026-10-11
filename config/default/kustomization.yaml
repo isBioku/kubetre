@@ -2,3 +2,4 @@ resources:
   - ../crd
   - ../rbac
   - ../manager
+  - ../shared

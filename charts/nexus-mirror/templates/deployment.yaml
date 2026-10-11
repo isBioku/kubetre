@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nexus.name" . }}
+  labels: {{- include "nexus.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: nexus-mirror}
+  template:
+    metadata:
+      labels: {{- include "nexus.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "nexus.podSecurity" . | nindent 8 }}
+      containers:
+        - name: nexus
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            # The initial admin password is the documented default until the setup job
+            # replaces it with the generated one.
+            - {name: NEXUS_SECURITY_RANDOMPASSWORD, value: "false"}
+            - {name: INSTALL4J_ADD_VM_PARAMS, value: "-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs"}
+          ports: [{name: http, containerPort: 8081}]
+          readinessProbe:
+            httpGet: {path: /service/rest/v1/status, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /service/rest/v1/status, port: http}
+            initialDelaySeconds: 240
+            periodSeconds: 30
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext: {{- include "nexus.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /nexus-data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: {{ include "nexus.name" . }}-data}

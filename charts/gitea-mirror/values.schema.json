@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "curlImage", "service", "storageGi", "mirrors", "kubetre"],
+  "properties": {
+    "storageGi": {"type": "integer", "minimum": 10, "maximum": 2048},
+    "mirrorInterval": {"type": "string", "pattern": "^[0-9]+[hm]$"},
+    "mirrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+          "url": {"type": "string", "pattern": "^https://"}
+        }
+      }
+    }
+  }
+}

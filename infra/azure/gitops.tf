@@ -59,6 +59,9 @@ locals {
     GATEWAY_HOSTNAME         = var.gateway_hostname
     GATEWAY_OIDC_CLIENT_ID   = var.gateway_oidc_client_id
     UI_CLIENT_ID             = var.ui_client_id
+    NEXUS_ILB_IP             = local.nexus_ilb_ip
+    GITEA_ILB_IP             = local.gitea_ilb_ip
+    MIRROR_UPSTREAM_FQDNS    = jsonencode([for f in var.mirror_upstream_fqdns : { matchName = f }])
     TRE_ID                   = var.name
     GATEWAY_ILB_IP           = local.gateway_ilb_ip
     ILB_SUBNET_NAME          = azurerm_subnet.shared_ilb.name

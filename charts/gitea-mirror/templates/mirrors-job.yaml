@@ -1,0 +1,50 @@
+{{- /* Creates a read-only pull mirror for each listed repository. Existing mirrors are left
+  alone; removing one from the list does not delete it. */ -}}
+{{- $name := include "gitea.name" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-mirrors
+  labels: {{- include "gitea.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels: {{- include "gitea.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext: {{- include "gitea.podSecurity" . | nindent 8 }}
+      containers:
+        - name: mirrors
+          image: "{{ .Values.curlImage.repository }}:{{ .Values.curlImage.tag }}"
+          env:
+            - {name: GITEA, value: "http://{{ $name }}.{{ .Release.Namespace }}.svc.cluster.local"}
+            - name: ADMIN_USER
+              valueFrom: {secretKeyRef: {name: {{ $name }}-admin, key: username}}
+            - name: ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $name }}-admin, key: password}}
+            - {name: INTERVAL, value: {{ .Values.mirrorInterval | quote }}}
+            - name: MIRRORS
+              value: {{ include "gitea.mirrors" . | quote }}
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              until curl -fsS "$GITEA/api/healthz" >/dev/null; do echo "waiting for Gitea"; sleep 5; done
+              echo "$MIRRORS" | tr ';' '\n' | while IFS='|' read -r repo url; do
+                [ -n "$repo" ] || continue
+                code=$(curl -s -o /dev/null -w '%{http_code}' -u "$ADMIN_USER:$ADMIN_PASSWORD" "$GITEA/api/v1/repos/$ADMIN_USER/$repo")
+                if [ "$code" = 200 ]; then echo "mirror $repo exists"; continue; fi
+                curl -fsS -u "$ADMIN_USER:$ADMIN_PASSWORD" -X POST -H 'Content-Type: application/json' \
+                  --data "{\"clone_addr\":\"$url\",\"repo_name\":\"$repo\",\"repo_owner\":\"$ADMIN_USER\",\"mirror\":true,\"mirror_interval\":\"$INTERVAL\",\"private\":false,\"service\":\"git\"}" \
+                  "$GITEA/api/v1/repos/migrate" >/dev/null
+                echo "mirror $repo created from $url"
+              done
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext: {{- include "gitea.containerSecurity" . | nindent 12 }}

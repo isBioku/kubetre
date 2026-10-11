@@ -1,0 +1,45 @@
+{{- define "gitea.name" -}}{{ .Release.Name | trunc 50 | trimSuffix "-" }}{{- end -}}
+
+{{- define "gitea.labels" -}}
+app.kubernetes.io/name: gitea-mirror
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+kubetre.io/service: {{ .Values.kubetre.service | quote }}
+{{- end -}}
+
+{{- define "gitea.podSecurity" -}}
+runAsNonRoot: true
+runAsUser: 1000
+runAsGroup: 1000
+fsGroup: 1000
+seccompProfile: {type: RuntimeDefault}
+{{- end -}}
+
+{{- define "gitea.containerSecurity" -}}
+allowPrivilegeEscalation: false
+capabilities: {drop: ["ALL"]}
+{{- end -}}
+
+{{- /* Gitea's settings, as GITEA__section__KEY variables the image turns into app.ini. */ -}}
+{{- define "gitea.env" -}}
+- {name: GITEA__database__DB_TYPE, value: sqlite3}
+- {name: GITEA__database__PATH, value: /var/lib/gitea/data/gitea.db}
+- {name: GITEA__server__HTTP_PORT, value: "3000"}
+- {name: GITEA__server__ROOT_URL, value: {{ printf "http://%s/" (.Values.service.loadBalancerIP | default (printf "%s.%s.svc.cluster.local" (include "gitea.name" .) .Release.Namespace)) | quote }}}
+- {name: GITEA__server__DISABLE_SSH, value: "true"}
+- {name: GITEA__server__OFFLINE_MODE, value: "true"}
+- {name: GITEA__security__INSTALL_LOCK, value: "true"}
+- {name: GITEA__service__DISABLE_REGISTRATION, value: "true"}
+- {name: GITEA__service__REQUIRE_SIGNIN_VIEW, value: "false"}
+- {name: GITEA__repository__DISABLE_STARS, value: "true"}
+- {name: GITEA__repository__MAX_CREATION_LIMIT, value: "0"}
+- {name: GITEA__mirror__MIN_INTERVAL, value: "10m"}
+- {name: GITEA__migrations__ALLOWED_DOMAINS, value: "github.com,*.github.com,gitlab.com"}
+- {name: GITEA__webhook__ALLOWED_HOST_LIST, value: "none"}
+{{- end -}}
+
+{{- define "gitea.mirrors" -}}
+{{- $out := list -}}
+{{- range .Values.mirrors -}}{{- $out = append $out (printf "%s|%s" .name .url) -}}{{- end -}}
+{{- join ";" $out -}}
+{{- end -}}

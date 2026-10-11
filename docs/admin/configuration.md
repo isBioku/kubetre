@@ -8,7 +8,7 @@ Terraform passes environment values to Flux as substitutions (`gitops_substituti
 `profiles/small.tfvars` overrides node counts, sizes and VM sizes for short, low-cost tests.
 Pass it with `-var-file=profiles/small.tfvars`.
 
-This reference is generated from `infra/azure/variables.tf`.
+This reference is generated from `infra/azure/variables.tf` by `hack/gen-config-docs.py`.
 
 ## Environment
 
@@ -36,6 +36,7 @@ This reference is generated from `infra/azure/variables.tf`.
 | `service_cidr` | `"172.16.0.0/16"` | Kubernetes service CIDR. Must not overlap the VNet. |
 | `firewall_sku_tier` | `"Standard"` | Standard or Premium. Basic cannot apply FQDN rules at the scale needed. |
 | `platform_egress_fqdns` | see `variables.tf` | Extra HTTPS destinations the cluster itself needs, beyond the AzureKubernetesService FQDN tag. Check firewall logs for denials on first deployment. |
+| `mirror_upstream_fqdns` | see `variables.tf` | Hosts the shared package and source mirrors (Nexus, Gitea) may fetch from. |
 | `firewall_dns_label` | `""` | Optional DNS label for the firewall's public IP. It yields <label>.<location>.cloudapp.azure.com, a free hostname for the gateway when you have no domain. |
 
 ## Cluster
@@ -102,4 +103,4 @@ This reference is generated from `infra/azure/variables.tf`.
 | `APP_GATEWAY_SKU`, `DEPLOY_BASTION`, `BASTION_SKU` | none: Envoy Gateway behind the firewall, no Bastion |
 | `UI_SITE_NAME`, `UI_FOOTER_TEXT` | none: the UI keeps Microsoft's defaults ("Azure TRE") |
 | `API_CLIENT_SECRET`, `APPLICATION_ADMIN_*`, `TEST_ACCOUNT_*`, `WORKSPACE_API_*`, `AUTO_*` | none; see [Identities](identities.md) |
-| `ENABLE_CMK_ENCRYPTION`, airlock settings, `enable_dns_policy`, `firewall_force_tunnel_ip`, `USER_MANAGEMENT_ENABLED` | not supported yet |
+| `ENABLE_CMK_ENCRYPTION`, `enable_dns_policy`, `firewall_force_tunnel_ip`, `USER_MANAGEMENT_ENABLED` | not supported yet |

@@ -45,14 +45,15 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	admin, _ := client.New(cfg, client.Options{Scheme: scheme})
 	ctx := context.Background()
 
-	for _, ns := range []string{"kubetre-system", controller.NamespacePrefix + "study1"} {
+	for _, ns := range []string{"kubetre-system", controller.SharedNamespace, controller.NamespacePrefix + "study1"} {
 		if err := admin.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	applyYAML(t, admin, filepath.Join(root, "config", "rbac", "api_role.yaml"))
 	applyYAML(t, admin, filepath.Join(root, "config", "rbac", "bindings.yaml"))
-	for _, f := range []string{"workspacetemplate-vm.yaml", "servicetemplate-virtual-desktops.yaml", "servicetemplate-windows-vm.yaml"} {
+	applyYAML(t, admin, filepath.Join(root, "config", "shared", "api-rbac.yaml"))
+	for _, f := range []string{"workspacetemplate-vm.yaml", "servicetemplate-virtual-desktops.yaml", "servicetemplate-windows-vm.yaml", "servicetemplate-nexus.yaml"} {
 		applyYAML(t, admin, filepath.Join(root, "config", "templates", f))
 	}
 
@@ -131,6 +132,14 @@ func TestAzureTREAPIWorksUnderItsRBAC(t *testing.T) {
 	call("DELETE", base+"/"+svc, "olu@example.com", "")
 	call("PATCH", "/api/workspaces/study1", "admin@example.com", `{"isEnabled":false}`)
 	call("DELETE", "/api/workspaces/study1", "admin@example.com", "")
+
+	// Shared services: created, listed with their addresses, disabled and deleted.
+	ss := call("POST", "/api/shared-services", "admin@example.com",
+		`{"templateName":"nexus","properties":{"display_name":"Mirror","description":"d"}}`)["operation"].(map[string]any)["resourceId"].(string)
+	call("GET", "/api/shared-services", "olu@example.com", "")
+	call("GET", "/api/shared-service-templates", "olu@example.com", "")
+	call("PATCH", "/api/shared-services/"+ss, "admin@example.com", `{"isEnabled":false}`)
+	call("DELETE", "/api/shared-services/"+ss, "admin@example.com", "")
 
 	got := &treV1.Workspace{}
 	if err := admin.Get(ctx, types.NamespacedName{Name: "study1"}, got); err == nil && got.DeletionTimestamp.IsZero() {

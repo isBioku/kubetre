@@ -1,0 +1,22 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: nexus
+spec:
+  kind: SharedService
+  displayName: Nexus (package mirror)
+  description: A read-only mirror of PyPI, CRAN, conda, npm and Ubuntu packages, shared by every workspace, so machines need no direct internet access to install packages.
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://registry.example.org/charts/nexus-mirror
+    version: 0.1.0
+    provider: azure
+  values:
+    image: {repository: registry.example.org/sonatype/nexus3, tag: "3.96.4"}
+    curlImage: {repository: registry.example.org/curlimages/curl, tag: "8.22.0"}
+    service: {loadBalancerIP: "", subnet: ""}
+  valuesSchema:
+    type: object
+    properties:
+      storageGi: {type: integer, title: Storage (GiB), minimum: 20, maximum: 4096, default: 100}
+    additionalProperties: false

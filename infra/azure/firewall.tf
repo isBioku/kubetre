@@ -120,6 +120,21 @@ resource "azurerm_firewall_policy_rule_collection_group" "platform" {
         port = 443
       }
     }
+    # The shared package and source mirrors fetch from these. The firewall cannot tell pods
+    # apart, so workspace pods are kept off them by their namespace's Cilium policy.
+    rule {
+      name              = "mirror-upstreams"
+      source_addresses  = [local.subnets.pods]
+      destination_fqdns = var.mirror_upstream_fqdns
+      protocols {
+        type = "Https"
+        port = 443
+      }
+      protocols {
+        type = "Http"
+        port = 80
+      }
+    }
   }
 }
 

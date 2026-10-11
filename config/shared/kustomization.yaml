@@ -1,0 +1,6 @@
+# The shared services namespace's deployer and network boundary. The namespace itself is in
+# config/manager/namespaces.yaml.
+resources:
+  - deployer.yaml
+  - networkpolicy.yaml
+  - api-rbac.yaml

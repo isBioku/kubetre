@@ -22,6 +22,8 @@ const (
 	LabelIngress        = "kubetre.io/ingress"
 
 	NamespacePrefix = "ws-"
+	// SharedNamespace holds the TRE's shared services, such as package mirrors.
+	SharedNamespace = "kubetre-shared"
 	QuotaName       = "kubetre-quota"
 	LimitRangeName  = "kubetre-defaults"
 	EgressPolicy    = "kubetre-egress-fqdn"

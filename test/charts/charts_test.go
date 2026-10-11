@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -212,5 +213,56 @@ func TestKubeVirtVMChart(t *testing.T) {
 	}
 	if sel := get(byKind["Service"][0], "spec", "selector", "kubetre.io/vm"); sel != "test" {
 		t.Errorf("service selector = %v", sel)
+	}
+}
+
+// Every pod the shared service charts create, including their setup jobs, must pass the
+// restricted Pod Security level that the shared namespace enforces.
+func TestSharedServiceChartsPassRestrictedPodSecurity(t *testing.T) {
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		t.Skip("KUBEBUILDER_ASSETS not set; run `make test`")
+	}
+	env := &envtest.Environment{}
+	cfg, err := env.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = env.Stop() }()
+	cs := kubernetes.NewForConfigOrDie(cfg)
+	ctx := context.Background()
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name: "kubetre-shared", Labels: map[string]string{"pod-security.kubernetes.io/enforce": "restricted"},
+	}}, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, chart := range []string{"nexus-mirror", "gitea-mirror"} {
+		pods := 0
+		for _, d := range render(t, chart, "kubetre.service=svc") {
+			var spec *corev1.PodSpec
+			switch {
+			case strings.Contains(string(d), "kind: Deployment"):
+				dep := &appsv1.Deployment{}
+				if err := yaml.UnmarshalStrict(d, dep); err != nil {
+					t.Fatalf("%s: deployment does not decode strictly: %v", chart, err)
+				}
+				spec = &dep.Spec.Template.Spec
+			case strings.Contains(string(d), "kind: Job"):
+				job := &batchv1.Job{}
+				if err := yaml.UnmarshalStrict(d, job); err != nil {
+					t.Fatalf("%s: job does not decode strictly: %v", chart, err)
+				}
+				spec = &job.Spec.Template.Spec
+			default:
+				continue
+			}
+			pods++
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{GenerateName: chart + "-"}, Spec: *spec}
+			if _, err := cs.CoreV1().Pods("kubetre-shared").Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+				t.Errorf("%s: pod rejected under restricted Pod Security: %v", chart, err)
+			}
+		}
+		if pods != 2 {
+			t.Errorf("%s: expected a deployment and a setup job, found %d pods", chart, pods)
+		}
 	}
 }

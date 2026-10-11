@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nexus-mirror
+description: A read-only package mirror (Sonatype Nexus) shared by every workspace in a KubeTRE environment.
+type: application
+version: 0.1.0
+appVersion: "3.96.4"

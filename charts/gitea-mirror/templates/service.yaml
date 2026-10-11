@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gitea.name" . }}
+  labels: {{- include "gitea.labels" . | nindent 4 }}
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    {{- with .Values.service.subnet }}
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.service.loadBalancerIP }}
+    service.beta.kubernetes.io/azure-load-balancer-ipv4: {{ . | quote }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: gitea-mirror}
+  ports:
+    - {name: http, port: 80, targetPort: http}

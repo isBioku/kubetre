@@ -169,3 +169,29 @@ func TestVMServiceRefusedWithoutVMNetworking(t *testing.T) {
 	}))
 	eventually(t, "refused without VM networking", func() bool { return svcReason(t, ns, "rita-vm") == "VirtualMachinesNotEnabled" })
 }
+
+// Shared service templates install only into the shared namespace, and workspace templates
+// never do, so neither can borrow the other's network position.
+func TestSharedServicesStayInTheSharedNamespace(t *testing.T) {
+	ctx := context.Background()
+	must(t, k8s.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: SharedNamespace,
+		Labels: map[string]string{LabelSharedServices: "true", LabelPodSecurity: "restricted"}}}))
+	must(t, k8s.Create(ctx, &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "mirror"},
+		Spec: treV1.ServiceTemplateSpec{Kind: treV1.KindSharedService, DisplayName: "Mirror", RequiredPodSecurity: treV1.PodSecurityRestricted}}))
+	must(t, k8s.Create(ctx, &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "ws-thing"},
+		Spec: treV1.ServiceTemplateSpec{DisplayName: "Thing", RequiredPodSecurity: treV1.PodSecurityRestricted}}))
+
+	create := func(ns, name, tmpl string) {
+		must(t, k8s.Create(ctx, &treV1.WorkspaceService{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+			Spec: treV1.WorkspaceServiceSpec{TemplateRef: tmpl, DisplayName: name}}))
+	}
+	create(SharedNamespace, "mirror", "mirror")
+	eventually(t, "shared service accepted", func() bool { return getSvc(t, SharedNamespace, "mirror").Status.Phase == treV1.PhaseReady })
+
+	create(SharedNamespace, "intruder", "ws-thing")
+	eventually(t, "workspace template refused in the shared namespace", func() bool { return svcReason(t, SharedNamespace, "intruder") == "NotASharedService" })
+
+	ns := readyWorkspace(t, "svc-shared", treV1.PodSecurityRestricted)
+	create(ns, "mirror", "mirror")
+	eventually(t, "shared template refused in a workspace", func() bool { return svcReason(t, ns, "mirror") == "SharedServiceInWorkspace" })
+}

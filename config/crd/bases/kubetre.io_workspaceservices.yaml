@@ -94,8 +94,8 @@ spec:
             - message: owner is immutable
               rule: self.owner == oldSelf.owner
             - message: parentService is immutable
-              rule: '(has(self.parentService) ? self.parentService : '''') == (has(oldSelf.parentService)
-                ? oldSelf.parentService : '''')'
+              rule: has(self.parentService) == has(oldSelf.parentService) && (!has(self.parentService)
+                || self.parentService == oldSelf.parentService)
           status:
             description: WorkspaceServiceStatus is the observed state of a WorkspaceService.
             properties:

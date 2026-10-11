@@ -82,6 +82,9 @@ nav:
           - Linux VM: templates/user-resources/linux-vm.md
           - Linux Desktop: templates/user-resources/linux-desktop.md
           - Linux VM on KubeVirt: templates/user-resources/linux-vm-kubevirt.md
+      - Shared Services:
+          - Nexus (Package Mirror): templates/shared-services/nexus.md
+          - Gitea (Source Mirror): templates/shared-services/gitea-mirror.md
 
   - Technical Guide:
       - Administration:

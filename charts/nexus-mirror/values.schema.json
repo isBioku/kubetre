@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "curlImage", "service", "storageGi", "repositories", "kubetre"],
+  "properties": {
+    "service": {
+      "type": "object",
+      "properties": {"loadBalancerIP": {"type": "string"}, "subnet": {"type": "string"}}
+    },
+    "storageGi": {"type": "integer", "minimum": 20, "maximum": 4096},
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "format", "remoteUrl"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "format": {"type": "string", "enum": ["pypi", "r", "conda", "npm", "apt", "maven2", "nuget"]},
+          "remoteUrl": {"type": "string", "pattern": "^https?://"}
+        }
+      }
+    }
+  }
+}

@@ -52,6 +52,9 @@ var values = map[string]string{
 	"GATEWAY_OIDC_CLIENT_ID":   "88888888-8888-8888-8888-888888888888",
 	"UI_CLIENT_ID":             "99999999-9999-9999-9999-999999999999",
 	"TRE_ID":                   "kubetredev",
+	"NEXUS_ILB_IP":             "10.224.9.20",
+	"GITEA_ILB_IP":             "10.224.9.21",
+	"MIRROR_UPSTREAM_FQDNS":    `[{"matchName":"pypi.org"},{"matchName":"github.com"}]`,
 	"GATEWAY_ILB_IP":           "10.224.9.10",
 	"ILB_SUBNET_NAME":          "snet-shared-ilb",
 	"VM_SIZE_SMALL":            "Standard_D2s_v5",
@@ -280,8 +283,8 @@ func TestTemplatesUseTheEnvironmentRegistry(t *testing.T) {
 			t.Errorf("ServiceTemplate %s chart url = %s", u.GetName(), url)
 		}
 	}
-	if n != 4 {
-		t.Fatalf("expected 4 ServiceTemplates in the platform stage, found %d", n)
+	if n != 6 {
+		t.Fatalf("expected 6 ServiceTemplates in the platform stage, found %d", n)
 	}
 }
 

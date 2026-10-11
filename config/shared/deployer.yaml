@@ -1,0 +1,15 @@
+# Flux installs shared service charts as this account, with the same confined permissions a
+# workspace's deployer has: it cannot change network policies, quotas or RBAC.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubetre-deployer
+  namespace: kubetre-shared
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubetre-deployer
+  namespace: kubetre-shared
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: kubetre-workspace-deployer}
+subjects: [{kind: ServiceAccount, name: kubetre-deployer, namespace: kubetre-shared}]

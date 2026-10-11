@@ -1,0 +1,27 @@
+# Set by the ServiceTemplate (administrator).
+image:
+  repository: registry.example.org/gitea/gitea
+  tag: "28.1.0-rootless"
+curlImage:
+  repository: registry.example.org/curlimages/curl
+  tag: "8.22.0"
+service:
+  loadBalancerIP: ""
+  subnet: ""
+storageGi: 50
+storageClassName: ""
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: "1", memory: 1Gi}
+
+# Chosen by the TRE administrator: repositories to mirror, refreshed every mirrorInterval.
+mirrors: []
+#  - {name: scikit-learn, url: "https://github.com/scikit-learn/scikit-learn.git"}
+mirrorInterval: 8h
+
+# Set by KubeTRE; do not set by hand.
+kubetre:
+  workspace: ""
+  service: ""
+  owner: ""
+  podSecurity: restricted

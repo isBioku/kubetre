@@ -1,0 +1,35 @@
+apiVersion: kubetre.io/v1alpha1
+kind: ServiceTemplate
+metadata:
+  name: gitea-mirror
+spec:
+  kind: SharedService
+  displayName: Gitea (source mirror)
+  description: Read-only mirrors of public Git repositories, shared by every workspace. Researchers clone from the mirror; nothing can be pushed out.
+  requiredPodSecurity: restricted
+  chart:
+    url: oci://registry.example.org/charts/gitea-mirror
+    version: 0.1.0
+    provider: azure
+  values:
+    image: {repository: registry.example.org/gitea/gitea, tag: "28.1.0-rootless"}
+    curlImage: {repository: registry.example.org/curlimages/curl, tag: "8.22.0"}
+    service: {loadBalancerIP: "", subnet: ""}
+  valuesSchema:
+    type: object
+    properties:
+      mirrors:
+        type: array
+        title: Repositories to mirror
+        description: Public HTTPS repositories. Mirrors refresh on the interval below.
+        updateable: true
+        items:
+          type: object
+          required: [name, url]
+          properties:
+            name: {type: string, title: Name, pattern: "^[A-Za-z0-9._-]+$"}
+            url: {type: string, title: Clone URL, pattern: "^https://"}
+        default: []
+      mirrorInterval: {type: string, title: Refresh interval, pattern: "^[0-9]+[hm]$", default: 8h, updateable: true}
+      storageGi: {type: integer, title: Storage (GiB), minimum: 10, maximum: 2048, default: 50}
+    additionalProperties: false

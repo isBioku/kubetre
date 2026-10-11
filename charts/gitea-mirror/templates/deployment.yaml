@@ -1,0 +1,62 @@
+{{- $name := include "gitea.name" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "gitea.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: gitea-mirror}
+  template:
+    metadata:
+      labels: {{- include "gitea.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {{- include "gitea.podSecurity" . | nindent 8 }}
+      initContainers:
+        # Creates the database and the admin account the setup job uses.
+        - name: init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              environment-to-ini --config /etc/gitea/app.ini
+              gitea migrate --config /etc/gitea/app.ini
+              gitea admin user create --config /etc/gitea/app.ini --admin --username "$ADMIN_USER" \
+                --password "$ADMIN_PASSWORD" --email "$ADMIN_USER@localhost" --must-change-password=false 2>/dev/null \
+              || gitea admin user change-password --config /etc/gitea/app.ini --username "$ADMIN_USER" \
+                --password "$ADMIN_PASSWORD" --must-change-password=false
+          env:
+            {{- include "gitea.env" . | nindent 12 }}
+            - name: ADMIN_USER
+              valueFrom: {secretKeyRef: {name: {{ $name }}-admin, key: username}}
+            - name: ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $name }}-admin, key: password}}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext: {{- include "gitea.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/gitea}
+            - {name: config, mountPath: /etc/gitea}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: gitea
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            {{- include "gitea.env" . | nindent 12 }}
+          ports: [{name: http, containerPort: 3000}]
+          readinessProbe: {httpGet: {path: /api/healthz, port: http}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /api/healthz, port: http}, initialDelaySeconds: 60, periodSeconds: 30}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext: {{- include "gitea.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/gitea}
+            - {name: config, mountPath: /etc/gitea}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: {{ $name }}-data}
+        - {name: config, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}

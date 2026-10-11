@@ -8,7 +8,7 @@ Kubernetes resource that Flux registers from Git:
 | Workspace template (Porter bundle) | `WorkspaceTemplate` | `config/templates/workspacetemplate-*.yaml` |
 | Workspace service template | `ServiceTemplate` with `kind: WorkspaceService` | `config/templates/servicetemplate-*.yaml` |
 | User resource template | `ServiceTemplate` with `kind: UserResource` and `parentTemplate` | `config/templates`, `config/kubevirt` |
-| Shared service template | not available yet | |
+| Shared service template | `ServiceTemplate` with `kind: SharedService` | `config/templates/servicetemplate-*.yaml` |
 
 A template's JSON Schema becomes the form in AzureTRE's UI. KubeTRE adds a name, a
 description and an overview field to every form, as AzureTRE does. Fields marked
@@ -25,6 +25,8 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 | Linux VM (Ubuntu 24.04) | User resource | [Linux VM](user-resources/linux-vm.md) |
 | Linux desktop | User resource | [Linux desktop](user-resources/linux-desktop.md) |
 | Linux VM on KubeVirt (Ubuntu 24.04) | User resource, optional | [Linux VM on KubeVirt](user-resources/linux-vm-kubevirt.md) |
+| Nexus (package mirror) | Shared service | [Nexus](shared-services/nexus.md) |
+| Gitea (source mirror) | Shared service | [Gitea](shared-services/gitea-mirror.md) |
 
 ## Not available yet
 
@@ -34,7 +36,7 @@ appear in the UI:
 - **Workspaces:** Unrestricted, Airlock Import Review.
 - **Workspace services:** Azure ML, Azure Databricks, Gitea, Health Services, OHDSI, MySQL,
   Azure SQL, Azure OpenAI.
-- **Shared services:** Gitea and Nexus mirrors, CycleCloud, Airlock Notifier.
+- **Shared services:** CycleCloud.
 - **User resources:** import and export review VMs.
 
 To add your own, see [Authoring templates](../developers/authoring-templates.md).

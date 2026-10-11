@@ -1,0 +1,64 @@
+{{- /*
+  Configures Nexus through its REST API after every install and upgrade: replaces the default
+  admin password, accepts the Community Edition licence terms, creates the proxy repositories
+  and turns on anonymous read access. Every step is idempotent.
+*/ -}}
+{{- $name := include "nexus.name" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-setup
+  labels: {{- include "nexus.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels: {{- include "nexus.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext: {{- include "nexus.podSecurity" . | nindent 8 }}
+      containers:
+        - name: setup
+          image: "{{ .Values.curlImage.repository }}:{{ .Values.curlImage.tag }}"
+          env:
+            - {name: NEXUS, value: "http://{{ $name }}.{{ .Release.Namespace }}.svc.cluster.local"}
+            - name: PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ $name }}-admin, key: password}}
+            - name: REPOSITORIES
+              value: {{ include "nexus.repositories" . | quote }}
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              until curl -fsS "$NEXUS/service/rest/v1/status/writable" >/dev/null; do echo "waiting for Nexus"; sleep 10; done
+              if curl -fsS -u admin:admin123 "$NEXUS/service/rest/v1/security/users?userId=admin" >/dev/null 2>&1; then
+                curl -fsS -u admin:admin123 -X PUT -H 'Content-Type: text/plain' --data "$PASSWORD" \
+                  "$NEXUS/service/rest/v1/security/users/admin/change-password"
+                echo "admin password set"
+              fi
+              A="admin:$PASSWORD"
+              eula=$(curl -fsS -u "$A" "$NEXUS/service/rest/v1/system/eula" || true)
+              if [ -n "$eula" ]; then
+                echo "$eula" | sed 's/"accepted" *: *false/"accepted":true/' | \
+                  curl -sS -u "$A" -X POST -H 'Content-Type: application/json' --data @- "$NEXUS/service/rest/v1/system/eula" || true
+              fi
+              echo "$REPOSITORIES" | tr ';' '\n' | while IFS='|' read -r name format body; do
+                [ -n "$name" ] || continue
+                code=$(curl -s -o /dev/null -w '%{http_code}' -u "$A" "$NEXUS/service/rest/v1/repositories/$name")
+                if [ "$code" = 200 ]; then method=PUT; url="$NEXUS/service/rest/v1/repositories/$format/proxy/$name"
+                else method=POST; url="$NEXUS/service/rest/v1/repositories/$format/proxy"; fi
+                curl -fsS -u "$A" -X "$method" -H 'Content-Type: application/json' --data "$body" "$url"
+                echo "repository $name ($format) ready"
+              done
+              curl -fsS -u "$A" -X PUT -H 'Content-Type: application/json' \
+                --data '{"enabled":true,"userId":"anonymous","realmName":"NexusAuthorizingRealm"}' \
+                "$NEXUS/service/rest/v1/security/anonymous"
+              echo "anonymous read enabled"
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext: {{- include "nexus.containerSecurity" . | nindent 12 }}

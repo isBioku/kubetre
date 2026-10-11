@@ -138,8 +138,11 @@ func workspaceTemplateJSON(t *treV1.WorkspaceTemplate, update bool) templateJSON
 
 func serviceTemplateJSON(t *treV1.ServiceTemplate, update bool) templateJSON {
 	kind := typeWorkspaceService
-	if t.IsUserResource() {
+	switch {
+	case t.IsUserResource():
 		kind = typeUserResource
+	case t.IsSharedService():
+		kind = typeSharedService
 	}
 	system, required := serviceSystemSchema(kind)
 	out := buildTemplate(t.Name, t.Spec.DisplayName, t.Spec.Description, templateVersion(t), kind,
@@ -198,8 +201,11 @@ func (s *Server) serviceTemplateList(r *http.Request, keep func(*treV1.ServiceTe
 			continue
 		}
 		kind := typeWorkspaceService
-		if t.IsUserResource() {
+		switch {
+		case t.IsUserResource():
 			kind = typeUserResource
+		case t.IsSharedService():
+			kind = typeSharedService
 		}
 		out = append(out, templateSummary{ID: t.Name, Name: t.Name, Title: t.Spec.DisplayName, Description: t.Spec.Description,
 			ResourceType: kind, Version: templateVersion(t), Current: true})
@@ -209,7 +215,7 @@ func (s *Server) serviceTemplateList(r *http.Request, keep func(*treV1.ServiceTe
 }
 
 func (s *Server) listServiceTemplates(w http.ResponseWriter, r *http.Request, _ access.Identity) {
-	out, err := s.serviceTemplateList(r, func(t *treV1.ServiceTemplate) bool { return !t.IsUserResource() })
+	out, err := s.serviceTemplateList(r, func(t *treV1.ServiceTemplate) bool { return !t.IsUserResource() && !t.IsSharedService() })
 	if err != nil {
 		s.internal(w, "list templates", err)
 		return
@@ -222,7 +228,7 @@ func (s *Server) getServiceTemplate(w http.ResponseWriter, r *http.Request, _ ac
 	if !ok {
 		return
 	}
-	if t.IsUserResource() {
+	if t.IsUserResource() || t.IsSharedService() {
 		writeError(w, http.StatusNotFound, "template not found")
 		return
 	}

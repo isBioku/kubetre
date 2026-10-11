@@ -28,6 +28,27 @@ patches:
       - op: replace
         path: /spec/chart/url
         value: oci://${ACR_LOGIN_SERVER}/charts/research-vm
+  # Shared services: the environment's registry, and fixed internal load balancer addresses in
+  # the shared services subnet, which workspace VM security groups allow.
+  - target: {kind: ServiceTemplate, name: nexus}
+    patch: |
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/nexus-mirror"}
+      - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/sonatype/nexus3"}
+      - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
+      - {op: replace, path: /spec/values/service, value: {loadBalancerIP: "${NEXUS_ILB_IP}", subnet: "${ILB_SUBNET_NAME}"}}
+  - target: {kind: ServiceTemplate, name: gitea-mirror}
+    patch: |
+      - {op: replace, path: /spec/chart/url, value: "oci://${ACR_LOGIN_SERVER}/charts/gitea-mirror"}
+      - {op: replace, path: /spec/values/image/repository, value: "${ACR_LOGIN_SERVER}/gitea/gitea"}
+      - {op: replace, path: /spec/values/curlImage/repository, value: "${ACR_LOGIN_SERVER}/curlimages/curl"}
+      - {op: replace, path: /spec/values/service, value: {loadBalancerIP: "${GITEA_ILB_IP}", subnet: "${ILB_SUBNET_NAME}"}}
+  # The shared namespace admits the environment's VM pool and reaches the mirrors' upstreams.
+  - target: {kind: NetworkPolicy, name: allow-from-workspaces, namespace: kubetre-shared}
+    patch: |
+      - {op: replace, path: /spec/ingress/0/from/1/ipBlock/cidr, value: "${VM_ADDRESS_POOL}"}
+  - target: {kind: CiliumNetworkPolicy, name: mirror-upstreams, namespace: kubetre-shared}
+    patch: |
+      - {op: replace, path: /spec/egress/1/toFQDNs, value: "${MIRROR_UPSTREAM_FQDNS}"}
 images:
   - name: kubetre/controller
     newName: ${ACR_LOGIN_SERVER}/kubetre/controller

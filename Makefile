@@ -77,10 +77,11 @@ acr-build-images:
 
 # Third-party images and charts copied into ACR so the cluster never pulls from Docker Hub.
 MIRROR := guacamole/guacamole:1.6.0 guacamole/guacd:1.6.0 envoyproxy/gateway:v1.9.2 \
-          envoyproxy/envoy:distroless-v1.39.1 envoyproxy/gateway-helm:v1.9.2
+          envoyproxy/envoy:distroless-v1.39.1 envoyproxy/gateway-helm:v1.9.2 \
+          sonatype/nexus3:3.96.4 gitea/gitea:28.1.0-rootless curlimages/curl:8.22.0
 
 .PHONY: acr-mirror
-acr-mirror: ## Import the access gateway's third-party images and chart into ACR
+acr-mirror: ## Import third-party images (gateway, mirrors) and the Envoy Gateway chart into ACR
 	for ref in $(MIRROR); do az acr import --name $(ACR_NAME) --source docker.io/$$ref --image $$ref --force; done
 
 # KubeVirt, CDI and the Ubuntu VM disk, for environments with kubevirt_enabled. Keep the
@@ -119,10 +120,10 @@ TERRAFORM := $(BIN)/terraform
 .PHONY: infra-validate infra-test
 infra-validate: ## Format-check and validate the Azure Terraform (no Azure account needed)
 	$(TERRAFORM) -chdir=infra/azure fmt -check -recursive
-	$(TERRAFORM) -chdir=infra/azure init -backend=false -input=false >/dev/null
-	$(TERRAFORM) -chdir=infra/azure validate
+	TF_DATA_DIR=.terraform-test $(TERRAFORM) -chdir=infra/azure init -backend=false -input=false >/dev/null
+	TF_DATA_DIR=.terraform-test $(TERRAFORM) -chdir=infra/azure validate
 infra-test: infra-validate ## Run the Terraform security tests against a mocked provider
-	$(TERRAFORM) -chdir=infra/azure test
+	TF_DATA_DIR=.terraform-test $(TERRAFORM) -chdir=infra/azure test
 
 .PHONY: gitops-build
 gitops-build: ## Render the three Flux stages in deploy/azure

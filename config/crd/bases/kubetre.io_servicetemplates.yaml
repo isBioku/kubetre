@@ -92,11 +92,13 @@ spec:
               kind:
                 default: WorkspaceService
                 description: |-
-                  Kind is WorkspaceService or UserResource. User resources are personal and are created
-                  under a workspace service of their parentTemplate.
+                  Kind is WorkspaceService, UserResource or SharedService. User resources are personal and
+                  are created under a workspace service of their parentTemplate. Shared services serve the
+                  whole TRE.
                 enum:
                 - WorkspaceService
                 - UserResource
+                - SharedService
                 type: string
               ownerAccount:
                 description: |-
@@ -144,8 +146,8 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: user resource templates need a parentTemplate
-              rule: self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate
-                != '')
+              rule: self.kind != 'UserResource' || (has(self.parentTemplate) && size(self.parentTemplate)
+                > 0)
         type: object
     served: true
     storage: true

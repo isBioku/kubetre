@@ -182,6 +182,19 @@ variable "platform_egress_fqdns" {
   ]
 }
 
+variable "mirror_upstream_fqdns" {
+  description = "Hosts the shared package and source mirrors (Nexus, Gitea) may fetch from."
+  type        = list(string)
+  default = [
+    "pypi.org", "files.pythonhosted.org",
+    "cloud.r-project.org", "cran.r-project.org",
+    "conda.anaconda.org", "repo.anaconda.com",
+    "registry.npmjs.org",
+    "archive.ubuntu.com", "security.ubuntu.com",
+    "github.com", "codeload.github.com", "objects.githubusercontent.com",
+  ]
+}
+
 variable "log_retention_days" {
   type    = number
   default = 90

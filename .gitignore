@@ -1,6 +1,7 @@
 bin/
 *.out
 .terraform/
+.terraform-test/
 *.tfstate
 *.tfstate.*
 *.tfvars

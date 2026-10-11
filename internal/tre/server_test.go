@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	corev1 "k8s.io/api/core/v1"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,6 +42,9 @@ func newEnv(t *testing.T, objs ...client.Object) *env {
 	if err := treV1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
 	vmSize := `{"type":"object","properties":{
 	  "size":{"type":"string","enum":["small","medium"],"default":"small","updateable":true},
 	  "diskGi":{"type":"integer","minimum":30,"default":64}},"additionalProperties":false}`
@@ -61,7 +65,7 @@ func newEnv(t *testing.T, objs ...client.Object) *env {
 			Chart: &treV1.ChartRef{URL: "oci://r/charts/linux-desktop", Version: "0.2.0"}}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(append(base, objs...)...).
-		WithStatusSubresource(&treV1.Workspace{}, &treV1.WorkspaceService{}).Build()
+		WithStatusSubresource(&treV1.Workspace{}, &treV1.WorkspaceService{}, &corev1.Service{}).Build()
 	s := &Server{Client: c, Auth: api.DevAuthenticator{}, APIScope: "api://kubetre-api",
 		GatewayURL: "https://tre.example.org/gateway", Version: "0.2.0"}
 	srv := httptest.NewServer(s.Handler())
@@ -351,4 +355,68 @@ func TestVMAccountIsNamedAfterItsOwner(t *testing.T) {
 	if got := values(vm); got["username"] != "rita" || got["size"] != "small" {
 		t.Fatalf("after update: %v", got)
 	}
+}
+
+// Shared services: TRE administrators manage them, everyone signed in sees them, and their
+// templates never appear among workspace services.
+func TestSharedServices(t *testing.T) {
+	sharedTmpl := &treV1.ServiceTemplate{ObjectMeta: metav1.ObjectMeta{Name: "nexus"}, Spec: treV1.ServiceTemplateSpec{
+		Kind: treV1.KindSharedService, DisplayName: "Nexus (package mirror)",
+		Chart:        &treV1.ChartRef{URL: "oci://r/charts/nexus-mirror", Version: "0.1.0"},
+		ValuesSchema: &apiextensionsv1.JSON{Raw: []byte(`{"type":"object","properties":{"storageGi":{"type":"integer","minimum":20}},"additionalProperties":false}`)}}}
+	e := newEnv(t, sharedTmpl, vmWorkspace("study1"))
+
+	// The template is offered only as a shared service.
+	if got := list(e.expect(200, "GET", "/api/shared-service-templates", rita, "")["templates"]); len(got) != 1 || m(got[0])["resourceType"] != "shared-service" {
+		t.Fatalf("shared service templates = %v", got)
+	}
+	for _, tm := range list(e.expect(200, "GET", "/api/workspace-service-templates", owner, "")["templates"]) {
+		if m(tm)["name"] == "nexus" {
+			t.Fatal("a shared service template is listed as a workspace service")
+		}
+	}
+	e.expect(404, "GET", "/api/workspace-service-templates/nexus", owner, "")
+	e.expect(400, "POST", "/api/workspaces/study1/workspace-services", owner, `{"templateName":"nexus","properties":{"display_name":"x"}}`)
+
+	body := `{"templateName":"nexus","properties":{"display_name":"Package mirror","description":"d","storageGi":50}}`
+	e.expect(403, "POST", "/api/shared-services", owner, body)
+	e.expect(400, "POST", "/api/shared-services", admin, `{"templateName":"virtual-desktops","properties":{"display_name":"x"}}`)
+	e.expect(422, "POST", "/api/shared-services", admin, `{"templateName":"nexus","properties":{"display_name":"x","storageGi":5}}`)
+	op := m(e.expect(202, "POST", "/api/shared-services", admin, body)["operation"])
+	name := op["resourceId"].(string)
+	if op["resourcePath"] != "/shared-services/"+name {
+		t.Fatalf("operation = %v", op)
+	}
+
+	// The chart's Service gives workspaces the mirror's addresses.
+	lb := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: controller.SharedNamespace,
+		Labels: map[string]string{"kubetre.io/service": name}}, Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer}}
+	if err := e.c.Create(context.Background(), lb); err != nil {
+		t.Fatal(err)
+	}
+	lb.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "10.224.9.20"}}
+	if err := e.c.Status().Update(context.Background(), lb); err != nil {
+		t.Fatal(err)
+	}
+
+	got := list(e.expect(200, "GET", "/api/shared-services", rita, "")["sharedServices"])
+	if len(got) != 1 {
+		t.Fatalf("every signed-in user sees shared services, got %d", len(got))
+	}
+	props := m(m(got[0])["properties"])
+	if props["address"] != "http://10.224.9.20" || props["cluster_address"] != "http://"+name+".kubetre-shared.svc.cluster.local" {
+		t.Fatalf("properties = %v", props)
+	}
+	path := "/api/shared-services/" + name
+	if s := m(e.expect(200, "GET", path+"/operations/"+op["id"].(string), admin, "")["operation"])["status"]; s != "deploying" {
+		t.Fatalf("status = %v", s)
+	}
+	e.expect(200, "GET", path+"/history", admin, "")
+
+	e.expect(403, "PATCH", path, owner, `{"isEnabled":false}`)
+	e.expect(400, "DELETE", path, admin, "")
+	e.expect(202, "PATCH", path, admin, `{"isEnabled":false}`)
+	e.expect(403, "DELETE", path, owner, "")
+	e.expect(202, "DELETE", path, admin, "")
+	e.expect(404, "GET", path, admin, "")
 }

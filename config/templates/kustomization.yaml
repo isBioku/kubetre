@@ -7,3 +7,5 @@ resources:
   - servicetemplate-linux-desktop.yaml
   - servicetemplate-linux-vm.yaml
   - servicetemplate-windows-vm.yaml
+  - servicetemplate-nexus.yaml
+  - servicetemplate-gitea-mirror.yaml

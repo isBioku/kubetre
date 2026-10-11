@@ -101,6 +101,8 @@ variables {
   operator_ip_ranges     = ["203.0.113.0/24"]
   admin_group_object_ids = ["88888888-8888-8888-8888-888888888888"]
   gitops_repository_url  = "https://github.com/example/kubetre"
+  # terraform test also loads a local terraform.tfvars; pin what the tests depend on.
+  kubevirt_enabled = false
 }
 
 run "cluster_access_is_entra_only_and_restricted" {

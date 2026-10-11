@@ -36,7 +36,7 @@ KubeTRE keeps what users see and replaces what operators run.
 ## Not available yet
 
 - **Data movement:** the airlock, review VMs and the airlock notifier.
-- **Shared services:** the Nexus and Gitea mirrors, CycleCloud and certificates.
+- **Shared services:** CycleCloud and certificates. The Nexus and Gitea mirrors are available.
 - **Workspace services:** Azure ML, Databricks, Gitea, Health Data Services, OHDSI, MySQL,
   Azure SQL and Azure OpenAI.
 - **Workspace types:** the Unrestricted and Airlock Import Review workspaces.

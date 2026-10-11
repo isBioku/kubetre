@@ -106,12 +106,20 @@ func (s *Server) Handler() http.Handler {
 	h("GET /api/workspace-service-templates/{name}", s.getServiceTemplate)
 	h("GET /api/workspaces/{ws}/workspace-service-templates/{parent}/user-resource-templates", s.listUserResourceTemplates)
 	h("GET /api/workspace-service-templates/{parent}/user-resource-templates/{name}", s.getUserResourceTemplate)
-	h("GET /api/shared-service-templates", s.emptyTemplates)
+	h("GET /api/shared-service-templates", s.listSharedServiceTemplates)
+	h("GET /api/shared-service-templates/{name}", s.getSharedServiceTemplate)
+
+	// Shared services.
+	h("GET /api/shared-services", s.listSharedServices)
+	h("POST /api/shared-services", s.createSharedService)
+	h("GET /api/shared-services/{ss}", s.getSharedService)
+	h("PATCH /api/shared-services/{ss}", s.patchSharedService)
+	h("DELETE /api/shared-services/{ss}", s.deleteSharedService)
+	h("GET /api/shared-services/{ss}/operations", s.listSharedOperations)
+	h("GET /api/shared-services/{ss}/operations/{op}", s.getSharedOperation)
+	h("GET /api/shared-services/{ss}/history", s.getSharedHistory)
 
 	// Features KubeTRE does not have yet. The UI already handles these responses.
-	h("GET /api/shared-services", func(w http.ResponseWriter, _ *http.Request, _ access.Identity) {
-		writeJSON(w, http.StatusOK, map[string]any{"sharedServices": []any{}})
-	})
 	h("GET /api/costs", notSupported)
 	h("GET /api/workspaces/{ws}/costs", notSupported)
 	h("GET /api/requests", func(w http.ResponseWriter, _ *http.Request, _ access.Identity) {

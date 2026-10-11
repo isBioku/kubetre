@@ -1,0 +1,50 @@
+# Shared services, such as package mirrors, accept traffic only from workspaces and reach only
+# their upstream hosts.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: kubetre-shared}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-within-namespace, namespace: kubetre-shared}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+# Workspace pods, and workspace VMs through the services' internal load balancers. The load
+# balancers keep the client address (externalTrafficPolicy: Local), so the VM pool matches.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-from-workspaces, namespace: kubetre-shared}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions: [{key: kubetre.io/workspace, operator: Exists}]
+        - ipBlock: {cidr: 10.240.0.0/16}
+---
+# Upstream registries the mirrors proxy, over HTTPS (and HTTP for apt). Cilium needs to see
+# DNS answers to enforce toFQDNs, so DNS goes through its proxy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: mirror-upstreams, namespace: kubetre-shared}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s:k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules: {dns: [{matchPattern: "*"}]}
+    - toFQDNs:
+        - matchName: pypi.org
+        - matchName: files.pythonhosted.org
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}, {port: "80", protocol: TCP}]

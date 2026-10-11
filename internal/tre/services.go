@@ -342,6 +342,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, id access.Identi
 		s.internal(w, "get template", err)
 		return
 	}
+	if tmpl.IsSharedService() {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("%q is a shared service template", tmpl.Name))
+		return
+	}
 	if parent == nil && tmpl.IsUserResource() {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("%q is a user resource template", tmpl.Name))
 		return

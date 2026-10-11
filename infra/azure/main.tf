@@ -13,6 +13,9 @@ locals {
 
   # Fixed address of the access gateway's internal load balancer; the firewall forwards to it.
   gateway_ilb_ip = cidrhost(local.subnets.shared_ilb, 10)
+  # Fixed addresses of the shared services' internal load balancers.
+  nexus_ilb_ip = cidrhost(local.subnets.shared_ilb, 20)
+  gitea_ilb_ip = cidrhost(local.subnets.shared_ilb, 21)
 
   # Host of the OIDC issuer, which the API and the gateway broker must reach.
   idp_host = var.oidc_issuer == "" ? "" : regex("^https://([^/:]+)", var.oidc_issuer)[0]

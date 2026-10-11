@@ -73,7 +73,8 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 	workspace := ns.Labels[LabelWorkspace]
-	if workspace == "" {
+	shared := ns.Labels[LabelSharedServices] == "true" && ns.Name == SharedNamespace
+	if workspace == "" && !shared {
 		return fail("NotInWorkspace", "services can only be installed in workspace namespaces", 0)
 	}
 
@@ -83,6 +84,15 @@ func (r *WorkspaceServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return fail("TemplateNotFound", fmt.Sprintf("ServiceTemplate %q does not exist", svc.Spec.TemplateRef), 0)
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Shared service templates install only into the shared namespace, and workspace
+	// templates only into workspaces, so neither can reach the other's network position.
+	if tmpl.IsSharedService() != shared {
+		if shared {
+			return fail("NotASharedService", fmt.Sprintf("ServiceTemplate %q is not a shared service", tmpl.Name), 0)
+		}
+		return fail("SharedServiceInWorkspace", fmt.Sprintf("ServiceTemplate %q is a shared service and installs only in %s", tmpl.Name, SharedNamespace), 0)
 	}
 
 	enforced := treV1.PodSecurityLevel(ns.Labels[LabelPodSecurity])

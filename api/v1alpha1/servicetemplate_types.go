@@ -29,16 +29,20 @@ const (
 	KindWorkspaceService = "WorkspaceService"
 	// KindUserResource belongs to one researcher and lives under a workspace service.
 	KindUserResource = "UserResource"
+	// KindSharedService is installed once for the whole TRE by a TRE administrator, in the
+	// shared services namespace, for example a package mirror.
+	KindSharedService = "SharedService"
 )
 
 // ServiceTemplateSpec defines a service that can be installed into workspaces.
-// +kubebuilder:validation:XValidation:rule="self.kind != 'UserResource' || (has(self.parentTemplate) && self.parentTemplate != ”)",message="user resource templates need a parentTemplate"
+// +kubebuilder:validation:XValidation:rule="self.kind != 'UserResource' || (has(self.parentTemplate) && size(self.parentTemplate) > 0)",message="user resource templates need a parentTemplate"
 type ServiceTemplateSpec struct {
-	// Kind is WorkspaceService or UserResource. User resources are personal and are created
-	// under a workspace service of their parentTemplate.
+	// Kind is WorkspaceService, UserResource or SharedService. User resources are personal and
+	// are created under a workspace service of their parentTemplate. Shared services serve the
+	// whole TRE.
 	// +optional
 	// +kubebuilder:default=WorkspaceService
-	// +kubebuilder:validation:Enum=WorkspaceService;UserResource
+	// +kubebuilder:validation:Enum=WorkspaceService;UserResource;SharedService
 	Kind string `json:"kind,omitempty"`
 
 	// ParentTemplate is the workspace service template a user resource is created under.
@@ -121,6 +125,9 @@ type ServiceTemplateList struct {
 func init() {
 	SchemeBuilder.Register(&ServiceTemplate{}, &ServiceTemplateList{})
 }
+
+// IsSharedService reports whether the template is a TRE-wide shared service.
+func (t *ServiceTemplate) IsSharedService() bool { return t.Spec.Kind == KindSharedService }
 
 // IsUserResource reports whether instances belong to one researcher.
 func (t *ServiceTemplate) IsUserResource() bool {
