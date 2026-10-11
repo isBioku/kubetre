@@ -20,6 +20,7 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 |---|---|---|
 | Base workspace | Workspace | [Base workspace](workspaces/base.md) |
 | Workspace with virtual machines | Workspace | [Workspace with virtual machines](workspaces/vm-workspace.md) |
+| Unrestricted workspace | Workspace | [Unrestricted workspace](workspaces/unrestricted.md) |
 | Virtual Desktops | Workspace service | [Virtual Desktops](workspace-services/virtual-desktops.md) |
 | Windows VM (Windows Server 2022) | User resource | [Windows VM](user-resources/windows-vm.md) |
 | Linux VM (Ubuntu 24.04) | User resource | [Linux VM](user-resources/linux-vm.md) |
@@ -33,7 +34,7 @@ description and an overview field to every form, as AzureTRE does. Fields marked
 AzureTRE ships many more templates. KubeTRE has no equivalent yet for these, so they do not
 appear in the UI:
 
-- **Workspaces:** Unrestricted, Airlock Import Review.
+- **Workspaces:** Airlock Import Review.
 - **Workspace services:** Azure ML, Azure Databricks, Gitea, Health Services, OHDSI, MySQL,
   Azure SQL, Azure OpenAI.
 - **Shared services:** CycleCloud.

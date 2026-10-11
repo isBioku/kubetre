@@ -293,6 +293,32 @@ func TestZZEgressEnforcedWithCilium(t *testing.T) {
 	})
 }
 
+// An unrestricted template allows the internet ("world") on any port, never the cluster.
+// Runs after TestZZEgressEnforcedWithCilium, which installs the Cilium CRD.
+func TestZZZUnrestrictedEgress(t *testing.T) {
+	ctx := context.Background()
+	tmpl := newTemplate("open-data")
+	tmpl.Spec.Egress.Unrestricted = true
+	must(t, k8s.Create(ctx, tmpl))
+	must(t, k8s.Create(ctx, newWorkspace("foxtrot", "open-data")))
+	eventually(t, "unrestricted egress", func() bool {
+		c := condition(getWS(t, "foxtrot"), treV1.ConditionEgressPolicy)
+		return c != nil && c.Reason == "Unrestricted"
+	})
+	cnp := &unstructured.Unstructured{}
+	cnp.SetAPIVersion("cilium.io/v2")
+	cnp.SetKind("CiliumNetworkPolicy")
+	must(t, k8s.Get(ctx, types.NamespacedName{Namespace: "ws-foxtrot", Name: EgressPolicy}, cnp))
+	egress, _, _ := unstructured.NestedSlice(cnp.Object, "spec", "egress")
+	entities, _, _ := unstructured.NestedStringSlice(egress[1].(map[string]any), "toEntities")
+	if len(entities) != 1 || entities[0] != "world" {
+		t.Fatalf("unrestricted egress must allow only the world entity, got %v", egress[1])
+	}
+	if _, hasPorts := egress[1].(map[string]any)["toPorts"]; hasPorts {
+		t.Fatal("unrestricted egress should allow every port")
+	}
+}
+
 func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {

@@ -1,0 +1,25 @@
+apiVersion: kubetre.io/v1alpha1
+kind: WorkspaceTemplate
+metadata:
+  name: unrestricted
+spec:
+  displayName: Unrestricted workspace
+  description: For open, non-sensitive data only. Machines can reach the whole internet, so data can leave this workspace. Includes personal VMs.
+  version: 0.1.0
+  podSecurity: restricted
+  virtualMachines:
+    enabled: true
+  quota:
+    requests.cpu: "8"
+    requests.memory: 32Gi
+    persistentvolumeclaims: "10"
+    requests.storage: 500Gi
+    count/researchvms.platform.kubetre.io: "20"
+  egress:
+    unrestricted: true
+  parametersSchema:
+    type: object
+    required: [costCentre]
+    properties:
+      costCentre: {type: string, title: Cost centre, pattern: "^CC-[0-9]{4}$"}
+    additionalProperties: false

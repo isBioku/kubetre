@@ -68,6 +68,12 @@ spec:
                       type: string
                     type: array
                     x-kubernetes-list-type: set
+                  unrestricted:
+                    description: |-
+                      Unrestricted allows all internet egress, on any port, for workspaces with open data.
+                      Traffic to other workspaces and the platform stays blocked. Only workspace templates
+                      should set it.
+                    type: boolean
                 type: object
               parametersSchema:
                 description: |-

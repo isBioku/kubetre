@@ -75,6 +75,7 @@ nav:
       - Workspaces:
           - Base: templates/workspaces/base.md
           - With Virtual Machines: templates/workspaces/vm-workspace.md
+          - Unrestricted: templates/workspaces/unrestricted.md
       - Workspace Services:
           - Virtual Desktops: templates/workspace-services/virtual-desktops.md
       - User Resources:

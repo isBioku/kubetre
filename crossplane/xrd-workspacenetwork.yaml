@@ -39,6 +39,10 @@ spec:
                       type: integer
                       minimum: 1000
                       maximum: 64999
+                    unrestrictedEgress:
+                      type: boolean
+                      default: false
+                      description: Allow all internet egress from the workspace subnet, for open-data workspaces.
                     allowedFQDNs:
                       type: array
                       maxItems: 200

@@ -232,12 +232,13 @@ func (r *WorkspaceReconciler) reconcileNetworkPolicies(ctx context.Context, ws *
 // enforced, and the default-deny policy blocks all internet egress: the workspace fails closed.
 func (r *WorkspaceReconciler) reconcileEgress(ctx context.Context, ws *treV1.Workspace, tmpl *treV1.WorkspaceTemplate) error {
 	fqdns := AllowedFQDNs(tmpl, ws)
+	open := tmpl.Spec.Egress.Unrestricted
 
 	if _, err := r.RESTMapper().RESTMapping(ciliumPolicyGK, "v2"); err != nil {
 		if !meta.IsNoMatchError(err) {
 			return err
 		}
-		if len(fqdns) == 0 {
+		if len(fqdns) == 0 && !open {
 			r.setCondition(ws, treV1.ConditionEgressPolicy, true, "NoEgressRequested", "no internet egress is allowed")
 		} else {
 			r.setCondition(ws, treV1.ConditionEgressPolicy, false, "CiliumNotInstalled",
@@ -249,6 +250,19 @@ func (r *WorkspaceReconciler) reconcileEgress(ctx context.Context, ws *treV1.Wor
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ciliumPolicyGK.WithVersion("v2"))
 	key := types.NamespacedName{Namespace: NamespaceFor(ws), Name: EgressPolicy}
+
+	if open {
+		desired := desiredUnrestrictedPolicy(ws)
+		if err := controllerutil.SetControllerReference(ws, desired, r.Scheme); err != nil {
+			return err
+		}
+		if err := applySpec(ctx, r.Client, desired); err != nil {
+			return err
+		}
+		r.setCondition(ws, treV1.ConditionEgressPolicy, true, "Unrestricted",
+			"all internet egress is allowed; other workspaces and the platform stay blocked")
+		return nil
+	}
 
 	if len(fqdns) == 0 {
 		existing.SetName(key.Name)
@@ -325,9 +339,10 @@ func (r *WorkspaceReconciler) reconcileVMNetwork(ctx context.Context, ws *treV1.
 	xr.SetNamespace(NamespaceFor(ws))
 	xr.SetLabels(commonLabels(ws))
 	xr.Object["spec"] = map[string]any{"parameters": map[string]any{
-		"addressPrefix":    ws.Status.VMNetwork.AddressPrefix,
-		"firewallPriority": int64(ws.Status.VMNetwork.FirewallPriority),
-		"allowedFQDNs":     fqdns,
+		"addressPrefix":      ws.Status.VMNetwork.AddressPrefix,
+		"firewallPriority":   int64(ws.Status.VMNetwork.FirewallPriority),
+		"allowedFQDNs":       fqdns,
+		"unrestrictedEgress": tmpl.Spec.Egress.Unrestricted,
 	}}
 	if err := applyParameters(ctx, r.Client, xr); err != nil {
 		return false, "", "", fmt.Errorf("workspacenetwork: %w", err)

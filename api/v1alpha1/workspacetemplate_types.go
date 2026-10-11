@@ -13,6 +13,12 @@ type EgressSpec struct {
 	// +optional
 	// +listType=set
 	AllowedFQDNs []string `json:"allowedFQDNs,omitempty"`
+
+	// Unrestricted allows all internet egress, on any port, for workspaces with open data.
+	// Traffic to other workspaces and the platform stays blocked. Only workspace templates
+	// should set it.
+	// +optional
+	Unrestricted bool `json:"unrestricted,omitempty"`
 }
 
 // WorkspaceTemplateSpec defines a kind of workspace that administrators can create.

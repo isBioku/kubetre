@@ -165,6 +165,15 @@ func sortStrings(s []string) {
 	}
 }
 
+// desiredUnrestrictedPolicy builds a CiliumNetworkPolicy allowing all internet egress. The
+// "world" entity excludes the cluster and its networks, so other workspaces stay unreachable.
+func desiredUnrestrictedPolicy(ws *treV1.Workspace) *unstructured.Unstructured {
+	u := desiredCiliumPolicy(ws, nil)
+	egress := u.Object["spec"].(map[string]any)["egress"].([]any)
+	egress[1] = map[string]any{"toEntities": []any{"world"}}
+	return u
+}
+
 // desiredCiliumPolicy builds a CiliumNetworkPolicy allowing HTTPS to the given FQDNs.
 // Cilium needs to see DNS answers to enforce toFQDNs, so DNS to kube-dns is proxied.
 func desiredCiliumPolicy(ws *treV1.Workspace, fqdns []string) *unstructured.Unstructured {

@@ -432,3 +432,48 @@ func TestActivationPolicyCoversExactlyTheComposedKinds(t *testing.T) {
 		t.Error("the Crossplane HelmRelease must disable the chart's catch-all activation policy")
 	}
 }
+
+// An unrestricted workspace gets an NSG rule and a firewall network rule allowing all internet
+// traffic from its own subnet, still nothing towards the rest of the VNet.
+func TestUnrestrictedWorkspaceNetwork(t *testing.T) {
+	params := map[string]any{"addressPrefix": "10.240.0.128/26", "firewallPriority": float64(1002), "unrestrictedEgress": true}
+	composed, _ := render(t, "composition-workspacenetwork.yaml", xr("WorkspaceNetwork", "vm-network", params), nil)
+	got := submit(t, composed)
+
+	rules, _, _ := unstructured.NestedSlice(got["nsg"].Object, "spec", "forProvider", "securityRule")
+	var allowAll, denyVNet bool
+	for _, r := range rules {
+		rule := r.(map[string]any)
+		switch rule["name"] {
+		case "allow-internet-all-out":
+			allowAll = rule["destinationAddressPrefix"] == "Internet" && rule["destinationPortRange"] == "*" && rule["access"] == "Allow"
+		case "deny-virtual-network-out":
+			denyVNet = rule["access"] == "Deny"
+		}
+	}
+	if !allowAll || !denyVNet {
+		t.Fatalf("NSG must allow the internet but still deny the VNet: %v", rules)
+	}
+
+	rcg := got["egress-rules"]
+	if rcg == nil {
+		t.Fatal("an unrestricted workspace needs its firewall rule collection group")
+	}
+	nrc, _, _ := unstructured.NestedSlice(rcg.Object, "spec", "forProvider", "networkRuleCollection")
+	if len(nrc) != 1 {
+		t.Fatalf("network rule collections = %v", nrc)
+	}
+	rule := nrc[0].(map[string]any)["rule"].([]any)[0].(map[string]any)
+	if src := rule["sourceAddresses"].([]any); len(src) != 1 || src[0] != "10.240.0.128/26" {
+		t.Errorf("the open rule must apply to the workspace subnet only, got %v", src)
+	}
+
+	// A restricted workspace gets neither.
+	params["unrestrictedEgress"] = false
+	params["allowedFQDNs"] = []any{"pypi.org"}
+	composed, _ = render(t, "composition-workspacenetwork.yaml", xr("WorkspaceNetwork", "vm-network", params), nil)
+	got = submit(t, composed)
+	if nrc, _, _ := unstructured.NestedSlice(got["egress-rules"].Object, "spec", "forProvider", "networkRuleCollection"); len(nrc) != 0 {
+		t.Errorf("a restricted workspace must have no open network rule, got %v", nrc)
+	}
+}
